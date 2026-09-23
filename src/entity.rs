@@ -9,7 +9,7 @@ use uncad_model::model::{
     HatchEntity, InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LineEntity,
     LwPolylineEntity, MTextAttachment, MTextEntity, Origin, Point2D, Point3D, PointEntity,
     PolylineVertex, RayEntity, Ref, SolidEntity, SplineEntity, TextEntity, TextHorizontalAlignment,
-    TextOverride, TextVerticalAlignment, ViewportEntity,
+    TextOverride, TextVerticalAlignment, ToleranceEntity, ViewportEntity, WipeoutEntity,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -189,6 +189,8 @@ const REQUIRED_GROUPS: &[(&str, i32, &str, &str)] = &[
     ("ELLIPSE", 41, "start parameter", "0"),
     ("ELLIPSE", 42, "end parameter", "a full turn"),
     ("SPLINE", 71, "degree", "0"),
+    ("TOLERANCE", 10, "insertion point", "the origin"),
+    ("WIPEOUT", 10, "insertion point", "the origin"),
     ("MTEXT", 10, "insertion point", "the origin"),
     ("MTEXT", 40, "text height", "0"),
     ("DIMENSION", 11, "text position", "the origin"),
@@ -434,6 +436,29 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             rotation: radians(pairs, 50)?,
             text_rotation: radians(pairs, 53)?,
             style_name: name_ref(text(pairs, 3)),
+        }),
+        // A feature control frame: its text is the frame's contents, symbol
+        // codes and all, as the file wrote it.
+        "TOLERANCE" => Entity::Tolerance(ToleranceEntity {
+            common,
+            insertion_point: point3(pairs, 10)?,
+            // The frame's height is its dimension style's; the record
+            // states one only in old files.
+            text_height: num(pairs, 40)?.filter(|h| *h != 0.0),
+            text_value: text(pairs, 1).unwrap_or("").to_string(),
+            // Written only when the frame is turned from the world x axis;
+            // absent, it is not turned. A zero vector is no direction.
+            direction: Some(optional_point3(pairs, 11)?.unwrap_or(Point3D {
+                x: 1.0,
+                y: 0.0,
+                z: 0.0,
+            }))
+            .filter(|d| d.x != 0.0 || d.y != 0.0 || d.z != 0.0),
+            style_name: name_ref(text(pairs, 3)),
+        }),
+        "WIPEOUT" => Entity::Wipeout(WipeoutEntity {
+            common,
+            boundary: wipeout_boundary(pairs)?,
         }),
         "LEADER" => Entity::Leader(LeaderEntity {
             common,
@@ -738,6 +763,66 @@ fn repeated_number(pairs: &[Pair<'_>], code: i32) -> Result<Vec<f64>, ReadError>
 /// read positionally: a 10 opens a vertex and the 20/30 that follow it
 /// belong to it. A missing 20 or 30 is zero, the same reading the
 /// single-point helper gives.
+/// A WIPEOUT's clip boundary in the entity's local space. The clip
+/// vertices (14) are in its image's pixel space, which runs from the
+/// image's upper left corner with each pixel's center on a whole number: a
+/// vertex `(x, y)` lies at `10 + (x + 0.5) * 11 + (h - 0.5 - y) * 12`, `h`
+/// being the image's height in pixels (23). A two-vertex rectangle (71 = 1)
+/// is its opposite corners; no vertices at all is the whole image. A first
+/// vertex repeated at the end is dropped: the loop is closed without it.
+fn wipeout_boundary(pairs: &[Pair<'_>]) -> Result<Vec<Point2D>, ReadError> {
+    let origin = point3(pairs, 10)?;
+    let u = optional_point3(pairs, 11)?.unwrap_or(Point3D {
+        x: 1.0,
+        y: 0.0,
+        z: 0.0,
+    });
+    let v = optional_point3(pairs, 12)?.unwrap_or(Point3D {
+        x: 0.0,
+        y: 1.0,
+        z: 0.0,
+    });
+    let size = Point2D {
+        x: num_or(pairs, 13, 1.0)?,
+        y: num_or(pairs, 23, 1.0)?,
+    };
+    let vertices: Vec<Point2D> = repeated_point3(pairs, 14)?
+        .into_iter()
+        .map(|p| Point2D { x: p.x, y: p.y })
+        .collect();
+    let rect =
+        |a: Point2D, b: Point2D| vec![a, Point2D { x: b.x, y: a.y }, b, Point2D { x: a.x, y: b.y }];
+    let mut vertices = vertices;
+    // A polygon written closed repeats its first vertex at the end; the loop
+    // is closed either way, and the repeat is not a vertex.
+    if vertices.len() > 2 && vertices.first() == vertices.last() {
+        vertices.pop();
+    }
+    let pixels = if int(pairs, 71)? == Some(1) && vertices.len() == 2 {
+        rect(vertices[0], vertices[1])
+    } else if !vertices.is_empty() {
+        vertices
+    } else {
+        rect(
+            Point2D { x: -0.5, y: -0.5 },
+            Point2D {
+                x: size.x - 0.5,
+                y: size.y - 0.5,
+            },
+        )
+    };
+    Ok(pixels
+        .into_iter()
+        .map(|p| {
+            let (a, b) = (p.x + 0.5, size.y - 0.5 - p.y);
+            Point2D {
+                x: origin.x + a * u.x + b * v.x,
+                y: origin.y + a * u.y + b * v.y,
+            }
+        })
+        .collect())
+}
+
 fn repeated_point3(pairs: &[Pair<'_>], x: i32) -> Result<Vec<Point3D>, ReadError> {
     let mut points = Vec::new();
     let mut i = 0;

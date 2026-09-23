@@ -536,6 +536,7 @@ fn resolve_names(
     let style = match e {
         Entity::Dimension(d) => Some(&mut d.style_name),
         Entity::Leader(l) => Some(&mut l.style_name),
+        Entity::Tolerance(t) => Some(&mut t.style_name),
         _ => None,
     };
     if let Some(style) = style {

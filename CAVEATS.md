@@ -11,8 +11,8 @@
 | Files whose bytes are not UTF-8 | 4 (`2000/TS1`, `example_2000`, `example_r13`, `example_r14`) -- all declare `ANSI_1252` and decode through it with no diagnostic |
 | Reads with a diagnostic | 0 |
 | Top-level entities | 1,225 |
-| Entity types interpreted | LINE 49,345 · LWPOLYLINE 827 · ARC 812 · POINT 789 · INSERT 566 · DIMENSION 294 (ARC_DIMENSION included) · MTEXT 308 · SOLID 266 · ELLIPSE 201 · CIRCLE 185 · 3DFACE 182 · TEXT 116 · ATTDEF 77 · POLYLINE (2D) 66 · SPLINE 48 · ATTRIB 31 · POLYLINE (3D) 27 · LEADER 20 · TRACE 20 · HATCH 28 · VIEWPORT 64 · RAY 22 · XLINE 18 -- over top-level and block entities |
-| Kept as `UNKNOWN` | IMAGE 70 · ACAD_PROXY_ENTITY 54 · REGION 36 · WIPEOUT 32 · MULTILEADER 24 · MLINE 20 · 3DSOLID 20 · TOLERANCE 18 · ACAD_TABLE 16 · SHAPE 16 · LIGHT 12 · and smaller counts of surfaces, meshes, underlays and pre-R10 REPEAT/ENDREP |
+| Entity types interpreted | LINE 49,345 · LWPOLYLINE 827 · ARC 812 · POINT 789 · INSERT 566 · DIMENSION 294 (ARC_DIMENSION included) · MTEXT 308 · SOLID 266 · ELLIPSE 201 · CIRCLE 185 · 3DFACE 182 · TEXT 116 · ATTDEF 77 · POLYLINE (2D) 66 · SPLINE 48 · ATTRIB 31 · POLYLINE (3D) 27 · LEADER 20 · TRACE 20 · HATCH 28 · VIEWPORT 64 · RAY 22 · XLINE 18 · WIPEOUT 32 · TOLERANCE 18 -- over top-level and block entities |
+| Kept as `UNKNOWN` | IMAGE 70 · ACAD_PROXY_ENTITY 54 · REGION 36 · MULTILEADER 24 · MLINE 20 · 3DSOLID 20 · ACAD_TABLE 16 · SHAPE 16 · LIGHT 12 · and smaller counts of surfaces, meshes, underlays and pre-R10 REPEAT/ENDREP |
 
 An `UNKNOWN` entity keeps its reference ID, layer, colour and type name; a consumer sees that it is there and what it is called.
 
@@ -81,13 +81,11 @@ A dimension's group 3 resolves against this table, so a dimension naming a style
 declares comes back resolved, and one naming a style it does not comes back unresolved, carrying
 the name.
 
-## TOLERANCE and LEADER are not read here
+## A frame's text keeps its caret codes; a wipeout's polygon is taken out of pixels
 
-The model carries what those two state -- a feature control frame's direction and style, a
-leader's path, what it points at and the entity it points to. This reader does not interpret
-either entity yet, so they come back under their own names as unread types, the same as the
-other twenty the format defines and this reader does not. Nothing is lost silently: an unread
-type keeps its name.
+A TOLERANCE's text is carried as the file wrote it. A DXF line cannot hold a control character, so the format writes one in caret notation -- a line break in a frame's text is `^J` -- and a DWG holds the character itself; the same frame read from the two formats therefore differs by that spelling, as it does for any other text code the model carries as written. A frame written without group 11 is not turned from the x axis: its direction is (1, 0, 0).
+
+A WIPEOUT's clip vertices (group 14) are in its image's pixel space: the origin is the image's upper left corner and pixel centers fall on whole numbers, so a vertex `(x, y)` lies at `10 + (x + 0.5) * 11 + (h - 0.5 - y) * 12`, with `h` the image's height in pixels (group 23; a wipeout's image is one pixel square). The model carries the result, a closed polygon in the entity's own coordinates. A polygon written closed -- its first vertex repeated at the end, as the corpus's files all are -- has the repeat dropped. The 16 wipeouts of the corpus that have a DWG twin come out the same from both formats.
 
 ## A leader's arrowhead flag has no "not stated"
 
