@@ -1,6 +1,7 @@
 //! Sections and records: HEADER, TABLES, BLOCKS, ENTITIES and OBJECTS, then
 //! the references resolved against what the tables declare.
 
+use crate::decode::string;
 use crate::entity::{self, Space};
 use crate::pairs::{pairs, Pair, ReadError};
 use std::collections::{BTreeMap, BTreeSet};
@@ -255,7 +256,7 @@ impl<'a, 'b> Reader<'a, 'b> {
                                 })
                         })
                         .collect::<Result<Vec<f64>, ReadError>>()?;
-                    self.mlinestyles.insert(name.value.to_string(), offsets);
+                    self.mlinestyles.insert(string(name.value), offsets);
                 }
                 (0, "LAYOUT") => {
                     let record = self.record();
@@ -307,7 +308,7 @@ impl<'a, 'b> Reader<'a, 'b> {
                     let Some(name) = record.iter().find(|p| p.code == 2) else {
                         continue; // the table's own header record carries no name
                     };
-                    let name = name.value.to_string();
+                    let name = string(name.value);
                     match table {
                         "LTYPE" => {
                             self.linetypes.insert(name);
@@ -354,12 +355,12 @@ impl<'a, 'b> Reader<'a, 'b> {
                     let Some(name) = record.iter().find(|p| p.code == 2) else {
                         continue; // the table's own header record carries no name
                     };
-                    let name = name.value.to_string();
+                    let name = string(name.value);
                     let text = |code: i32| {
                         record
                             .iter()
                             .find(|p| p.code == code)
-                            .map(|p| p.value.to_string())
+                            .map(|p| string(p.value))
                     };
                     let number = |code: i32| -> Result<Option<f64>, ReadError> {
                         match record.iter().find(|p| p.code == code) {
@@ -446,7 +447,7 @@ impl<'a, 'b> Reader<'a, 'b> {
                     let name = header
                         .iter()
                         .find(|p| p.code == 2)
-                        .map(|p| p.value.to_string())
+                        .map(|p| string(p.value))
                         .unwrap_or_default();
                     let mut entities = Vec::new();
                     loop {
@@ -885,7 +886,7 @@ fn layer(record: &[Pair<'_>]) -> Result<Option<LayerRecord>, ReadError> {
     let color_index = value::<i16>(record, 62)?.unwrap_or(7);
     let flags = value::<i64>(record, 70)?.unwrap_or(0);
     Ok(Some(LayerRecord {
-        name: name.value.to_string(),
+        name: string(name.value),
         color_index,
         off: color_index < 0,
         frozen: flags & 1 != 0,
@@ -893,7 +894,7 @@ fn layer(record: &[Pair<'_>]) -> Result<Option<LayerRecord>, ReadError> {
         plot: value::<i64>(record, 290)?.map(|v| v != 0),
         lineweight: value::<i16>(record, 370)?,
         linetype: match record.iter().find(|p| p.code == 6) {
-            Some(p) if !p.value.is_empty() => Ref::Unresolved(p.value.to_string()),
+            Some(p) if !p.value.is_empty() => Ref::Unresolved(string(p.value)),
             _ => Ref::Absent,
         },
     }))
@@ -931,7 +932,7 @@ fn layout(record: &[Pair<'_>]) -> Result<Option<LayoutRecord>, ReadError> {
         _ => Ref::Absent,
     };
     Ok(Some(LayoutRecord {
-        name: name.value.to_string(),
+        name: string(name.value),
         tab_order: value::<i32>(own, 71)?.unwrap_or(0),
         block_name,
         limits_min: point(own, 10)?,
@@ -940,7 +941,7 @@ fn layout(record: &[Pair<'_>]) -> Result<Option<LayoutRecord>, ReadError> {
             paper_name: plot
                 .iter()
                 .find(|p| p.code == 4)
-                .map(|p| p.value.to_string())
+                .map(|p| string(p.value))
                 .unwrap_or_default(),
             paper_width: number(plot, 44)?,
             paper_height: number(plot, 45)?,

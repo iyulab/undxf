@@ -76,6 +76,27 @@ fn header(bytes: &[u8]) -> (Option<String>, Option<String>) {
     (version, codepage)
 }
 
+/// A string value as the model carries it: the file's storage of it undone
+/// -- its `\U+` / `\M+` escapes and its caret notation (principles §6.1,
+/// [`uncad_model::text`]). Every string this crate puts into the model goes
+/// through here, names as well as text, so that a name an entity refers by
+/// and the table entry it names are undone alike.
+pub(crate) fn string(value: &str) -> String {
+    let escaped = uncad_model::text::decode_escapes(value, multibyte);
+    uncad_model::text::decode_caret(&escaped).into_owned()
+}
+
+/// A `\M+` escape's two bytes in the code page it names.
+fn multibyte(codepage: u16, bytes: [u8; 2]) -> Option<char> {
+    let encoding = encoding_for(&format!("ANSI_{codepage}"))?;
+    let (text, had_errors) = encoding.decode_without_bom_handling(&bytes);
+    let mut chars = text.chars();
+    match (had_errors, chars.next(), chars.next()) {
+        (false, Some(c), None) => Some(c),
+        _ => None,
+    }
+}
+
 /// The encoding a `$DWGCODEPAGE` name means. The names are the `ANSI_`
 /// forms the DXF reference lists; case does not matter.
 fn encoding_for(name: &str) -> Option<&'static Encoding> {

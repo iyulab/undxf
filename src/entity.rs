@@ -2,6 +2,7 @@
 //! its `0` line up to the next `0` line; which of them mean what is the DXF
 //! reference's table for that type.
 
+use crate::decode::string;
 use crate::pairs::{Pair, ReadError};
 use uncad_model::model::{
     ArcEntity, AttdefEntity, AttribEntity, AttributeFlags, CircleEntity, Confidence,
@@ -140,7 +141,7 @@ fn common(pairs: &[Pair<'_>], ordinal: u64) -> Result<EntityCommon, ReadError> {
     // The layer is carried by name here and resolved against the LAYER
     // table by the reader once every table is in.
     let layer = match text(pairs, 8) {
-        Some(name) => Ref::Unresolved(name.to_string()),
+        Some(name) => Ref::Unresolved(string(name)),
         None => Ref::Absent,
     };
     let color_index = int(pairs, 62)?.map_or(256, |c| c as i16);
@@ -384,7 +385,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 common,
                 start_point: point2(pairs, 10)?,
                 text_height: num_or(pairs, 40, 0.0)?,
-                text: text(pairs, 1).unwrap_or("").to_string(),
+                text: string(text(pairs, 1).unwrap_or("")),
                 rotation: radians(pairs, 50)?,
                 horizontal_justification: placement.horizontal,
                 vertical_justification: placement.vertical,
@@ -402,9 +403,9 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 common,
                 start_point: point2(pairs, 10)?,
                 text_height: num_or(pairs, 40, 0.0)?,
-                tag: text(pairs, 2).unwrap_or("").to_string(),
+                tag: string(text(pairs, 2).unwrap_or("")),
                 flags: attribute_flags(pairs)?,
-                text: text(pairs, 1).unwrap_or("").to_string(),
+                text: string(text(pairs, 1).unwrap_or("")),
                 rotation: radians(pairs, 50)?,
                 horizontal_justification: placement.horizontal,
                 vertical_justification: placement.vertical,
@@ -422,9 +423,9 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 common,
                 start_point: point2(pairs, 10)?,
                 text_height: num_or(pairs, 40, 0.0)?,
-                tag: text(pairs, 2).unwrap_or("").to_string(),
+                tag: string(text(pairs, 2).unwrap_or("")),
                 flags: attribute_flags(pairs)?,
-                default_value: text(pairs, 1).unwrap_or("").to_string(),
+                default_value: string(text(pairs, 1).unwrap_or("")),
                 rotation: radians(pairs, 50)?,
                 horizontal_justification: placement.horizontal,
                 vertical_justification: placement.vertical,
@@ -491,7 +492,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             // The frame's height is its dimension style's; the record
             // states one only in old files.
             text_height: num(pairs, 40)?.filter(|h| *h != 0.0),
-            text_value: text(pairs, 1).unwrap_or("").to_string(),
+            text_value: string(text(pairs, 1).unwrap_or("")),
             // Written only when the frame is turned from the world x axis;
             // absent, it is not turned. A zero vector is no direction.
             direction: Some(optional_point3(pairs, 11)?.unwrap_or(Point3D {
@@ -734,7 +735,7 @@ fn text_override(value: Option<&str>) -> TextOverride {
     match value {
         None | Some("") | Some("<>") => TextOverride::Measured,
         Some(" ") => TextOverride::Suppressed,
-        Some(other) => TextOverride::Literal(other.to_string()),
+        Some(other) => TextOverride::Literal(string(other)),
     }
 }
 
@@ -911,7 +912,9 @@ fn mtext_string(pairs: &[Pair<'_>]) -> String {
         .map(|p| p.value)
         .collect();
     out.push_str(text(pairs, 1).unwrap_or(""));
-    out
+    // Undone after the pieces are joined: a piece boundary can fall inside
+    // an escape.
+    string(&out)
 }
 
 /// Every value of a group a record repeats (a spline's knots, its weights),
@@ -1041,7 +1044,7 @@ fn handle_ref(pairs: &[Pair<'_>], code: i32) -> Ref<EntityId> {
 /// section by the reader. No name at all is [`Ref::Absent`].
 fn name_ref(name: Option<&str>) -> Ref<String> {
     match name {
-        Some(n) if !n.is_empty() => Ref::Unresolved(n.to_string()),
+        Some(n) if !n.is_empty() => Ref::Unresolved(string(n)),
         _ => Ref::Absent,
     }
 }
