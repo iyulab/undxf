@@ -104,6 +104,16 @@ fn point2(pairs: &[Pair<'_>], x: i32) -> Result<Point2D, ReadError> {
     })
 }
 
+/// The extrusion direction (DXF 210), written only when it is not the
+/// default Z axis.
+fn extrusion(pairs: &[Pair<'_>]) -> Result<Point3D, ReadError> {
+    Ok(optional_point3(pairs, 210)?.unwrap_or(Point3D {
+        x: 0.0,
+        y: 0.0,
+        z: 1.0,
+    }))
+}
+
 fn radians(pairs: &[Pair<'_>], code: i32) -> Result<f64, ReadError> {
     Ok(num_or(pairs, code, 0.0)?.to_radians())
 }
@@ -229,6 +239,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             common,
             center: point3(pairs, 10)?,
             radius: num_or(pairs, 40, 0.0)?,
+            extrusion: extrusion(pairs)?,
         }),
         "ARC" => Entity::Arc(ArcEntity {
             common,
@@ -236,6 +247,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             radius: num_or(pairs, 40, 0.0)?,
             start_angle: radians(pairs, 50)?,
             end_angle: radians(pairs, 51)?,
+            extrusion: extrusion(pairs)?,
         }),
         "LWPOLYLINE" => {
             // Vertices are the 10/20 pairs in order; a 10 opens a vertex,
@@ -403,12 +415,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             // degrees ARC and TEXT write.
             start_angle: num_or(pairs, 41, 0.0)?,
             end_angle: num_or(pairs, 42, std::f64::consts::TAU)?,
-            // Written only when it is not the default Z axis.
-            extrusion: optional_point3(pairs, 210)?.unwrap_or(Point3D {
-                x: 0.0,
-                y: 0.0,
-                z: 1.0,
-            }),
+            extrusion: extrusion(pairs)?,
         }),
         "MTEXT" => Entity::MText(MTextEntity {
             common,
