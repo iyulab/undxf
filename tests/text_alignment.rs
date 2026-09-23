@@ -1,5 +1,6 @@
-//! TEXT alignment: the two alignment codes, the alignment point the format
-//! writes only for an aligned text, and the width factor.
+//! TEXT, ATTRIB and ATTDEF alignment: the two alignment codes, the
+//! alignment point the format writes only for an aligned text, and the width
+//! factor.
 
 use uncad_model::model::{Entity, Point2D, TextHorizontalAlignment, TextVerticalAlignment};
 use undxf::read_str;
@@ -72,4 +73,24 @@ fn an_alignment_outside_the_format_is_reported_and_read_as_the_default() {
     );
     assert_eq!(warnings.len(), 2, "{warnings:?}");
     assert!(warnings.iter().all(|w| w.starts_with("TEXT_ALIGNMENT:")));
+}
+
+#[test]
+fn an_attribute_reads_its_vertical_alignment_from_74_not_73() {
+    // In an ATTRIB, 73 is the field length; the vertical alignment is 74.
+    let dxf = "  0\nSECTION\n  2\nENTITIES\n  0\nATTRIB\n  5\n2B\n  8\n0\n 10\n1\n 20\n2\n 40\n2.5\n  1\nBP-1042\n 41\n0.9\n 72\n2\n 11\n40\n 21\n3\n  2\nDWGNO\n 70\n0\n 73\n12\n 74\n2\n  0\nENDSEC\n  0\nEOF\n";
+    let db = read_str(dxf).unwrap();
+    let Entity::Attrib(a) = &db.entities[0] else {
+        panic!("an ATTRIB, got {:?}", db.entities[0]);
+    };
+    assert_eq!(
+        (a.horizontal_alignment, a.vertical_alignment),
+        (
+            TextHorizontalAlignment::Right,
+            TextVerticalAlignment::Middle
+        )
+    );
+    assert_eq!(a.alignment_point, Some(Point2D { x: 40.0, y: 3.0 }));
+    assert_eq!(a.width_factor, 0.9);
+    assert!(db.read_diagnostics.is_clean(), "{:?}", db.read_diagnostics);
 }
