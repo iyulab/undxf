@@ -21,6 +21,7 @@
 
 mod decode;
 mod entity;
+mod hatch;
 mod pairs;
 mod read;
 

@@ -157,6 +157,9 @@ fn corpus_sweep() {
     assert_eq!(s.known.get("SOLID"), Some(&266));
     assert_eq!(s.known.get("TRACE"), Some(&20));
     assert_eq!(s.known.get("3DFACE"), Some(&182));
+    // Read in order, without a structure diagnostic in the corpus.
+    assert_eq!(s.known.get("HATCH"), Some(&28));
+    assert_eq!(s.unknown.get("HATCH"), None);
     for t in ["POINT", "SOLID", "TRACE", "3DFACE"] {
         assert_eq!(s.unknown.get(t), None, "{t}");
     }

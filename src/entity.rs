@@ -6,10 +6,10 @@ use crate::pairs::{Pair, ReadError};
 use uncad_model::model::{
     ArcEntity, AttdefEntity, AttribEntity, CircleEntity, Confidence, DimensionEntity,
     DimensionKind, DimensionPoints, EllipseEntity, Entity, EntityCommon, EntityId, Face3DEntity,
-    InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LineEntity, LwPolylineEntity,
-    MTextAttachment, MTextEntity, Origin, Point2D, Point3D, PointEntity, PolylineVertex, Ref,
-    SolidEntity, SplineEntity, TextEntity, TextHorizontalAlignment, TextOverride,
-    TextVerticalAlignment,
+    HatchEntity, InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LineEntity,
+    LwPolylineEntity, MTextAttachment, MTextEntity, Origin, Point2D, Point3D, PointEntity,
+    PolylineVertex, Ref, SolidEntity, SplineEntity, TextEntity, TextHorizontalAlignment,
+    TextOverride, TextVerticalAlignment,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -496,6 +496,16 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 weights: repeated_number(pairs, 41)?,
                 fit_points: repeated_point3(pairs, 11)?,
                 control_points: repeated_point3(pairs, 10)?,
+            })
+        }
+        "HATCH" => {
+            let hatch = crate::hatch::read(pairs, &mut warnings)?;
+            Entity::Hatch(HatchEntity {
+                common,
+                boundary_paths: hatch.boundary_paths,
+                solid_fill: hatch.solid_fill,
+                gradient: hatch.gradient,
+                pattern_lines: hatch.pattern_lines,
             })
         }
         other => Entity::Unknown {
