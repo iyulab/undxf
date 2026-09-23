@@ -8,7 +8,8 @@ use uncad_model::model::{
     DimensionKind, DimensionPoints, EllipseEntity, Entity, EntityCommon, EntityId, Face3DEntity,
     InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LineEntity, LwPolylineEntity,
     MTextAttachment, MTextEntity, Origin, Point2D, Point3D, PointEntity, PolylineVertex, Ref,
-    SolidEntity, SplineEntity, TextEntity, TextOverride,
+    SolidEntity, SplineEntity, TextEntity, TextHorizontalAlignment, TextOverride,
+    TextVerticalAlignment,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -228,7 +229,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
         _ => Space::Model,
     };
     let mut attribs_follow = false;
-    let warnings = missing_required_groups(type_name, pairs);
+    let mut warnings = missing_required_groups(type_name, pairs);
     let entity = match type_name {
         "LINE" => Entity::Line(LineEntity {
             common,
@@ -331,13 +332,32 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 ),
             })
         }
-        "TEXT" => Entity::Text(TextEntity {
-            common,
-            start_point: point2(pairs, 10)?,
-            text_height: num_or(pairs, 40, 0.0)?,
-            text: text(pairs, 1).unwrap_or("").to_string(),
-            rotation: radians(pairs, 50)?,
-        }),
+        "TEXT" => {
+            let (horizontal_alignment, vertical_alignment) = text_alignment(pairs, &mut warnings)?;
+            let aligned = (horizontal_alignment, vertical_alignment)
+                != (
+                    TextHorizontalAlignment::Left,
+                    TextVerticalAlignment::Baseline,
+                );
+            Entity::Text(TextEntity {
+                common,
+                start_point: point2(pairs, 10)?,
+                text_height: num_or(pairs, 40, 0.0)?,
+                text: text(pairs, 1).unwrap_or("").to_string(),
+                rotation: radians(pairs, 50)?,
+                horizontal_alignment,
+                vertical_alignment,
+                // Written only for a text aligned otherwise than the default;
+                // one that is not has no alignment point to state.
+                alignment_point: if aligned {
+                    optional_point2(pairs, 11)?
+                } else {
+                    None
+                },
+                // A fraction of the normal width: absent is 1.
+                width_factor: num_or(pairs, 41, 1.0)?,
+            })
+        }
         "ATTRIB" => Entity::Attrib(AttribEntity {
             common,
             start_point: point2(pairs, 10)?,
@@ -550,6 +570,50 @@ fn text_override(value: Option<&str>) -> TextOverride {
         Some(" ") => TextOverride::Suppressed,
         Some(other) => TextOverride::Literal(other.to_string()),
     }
+}
+
+/// A TEXT's alignment (72 horizontal, 73 vertical); an absent group is the
+/// default. A value outside the format's range is reported, and read as the
+/// default rather than refused.
+fn text_alignment(
+    pairs: &[Pair<'_>],
+    warnings: &mut Vec<String>,
+) -> Result<(TextHorizontalAlignment, TextVerticalAlignment), ReadError> {
+    let horizontal = match int(pairs, 72)? {
+        None | Some(0) => TextHorizontalAlignment::Left,
+        Some(1) => TextHorizontalAlignment::Center,
+        Some(2) => TextHorizontalAlignment::Right,
+        Some(3) => TextHorizontalAlignment::Aligned,
+        Some(4) => TextHorizontalAlignment::Middle,
+        Some(5) => TextHorizontalAlignment::Fit,
+        Some(other) => {
+            warnings.push(format!(
+                "TEXT_ALIGNMENT: a TEXT states horizontal alignment {other} (group 72), outside 0 to 5; it is read as left"
+            ));
+            TextHorizontalAlignment::Left
+        }
+    };
+    let vertical = match int(pairs, 73)? {
+        None | Some(0) => TextVerticalAlignment::Baseline,
+        Some(1) => TextVerticalAlignment::Bottom,
+        Some(2) => TextVerticalAlignment::Middle,
+        Some(3) => TextVerticalAlignment::Top,
+        Some(other) => {
+            warnings.push(format!(
+                "TEXT_ALIGNMENT: a TEXT states vertical alignment {other} (group 73), outside 0 to 3; it is read as baseline"
+            ));
+            TextVerticalAlignment::Baseline
+        }
+    };
+    Ok((horizontal, vertical))
+}
+
+/// A 2D point the file may leave out: absent when its x group is.
+fn optional_point2(pairs: &[Pair<'_>], x: i32) -> Result<Option<Point2D>, ReadError> {
+    if num(pairs, x)?.is_none() {
+        return Ok(None);
+    }
+    Ok(Some(point2(pairs, x)?))
 }
 
 /// A point the file carries only for some dimension subtypes. Its absence is
