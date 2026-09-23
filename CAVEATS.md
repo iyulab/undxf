@@ -11,8 +11,8 @@
 | Files whose bytes are not UTF-8 | 4 (`2000/TS1`, `example_2000`, `example_r13`, `example_r14`) -- all declare `ANSI_1252` and decode through it with no diagnostic |
 | Reads with a diagnostic | 0 |
 | Top-level entities | 1,225 |
-| Entity types interpreted | LINE 49,345 · LWPOLYLINE 827 · ARC 812 · POINT 789 · INSERT 566 · DIMENSION 294 (ARC_DIMENSION included) · MTEXT 308 · SOLID 266 · ELLIPSE 201 · CIRCLE 185 · 3DFACE 182 · TEXT 116 · ATTDEF 77 · POLYLINE (2D) 66 · SPLINE 48 · ATTRIB 31 · POLYLINE (3D) 27 · LEADER 20 · TRACE 20 · HATCH 28 · VIEWPORT 64 · RAY 22 · XLINE 18 · WIPEOUT 32 · TOLERANCE 18 -- over top-level and block entities |
-| Kept as `UNKNOWN` | IMAGE 70 · ACAD_PROXY_ENTITY 54 · REGION 36 · MULTILEADER 24 · MLINE 20 · 3DSOLID 20 · ACAD_TABLE 16 · SHAPE 16 · LIGHT 12 · and smaller counts of surfaces, meshes, underlays and pre-R10 REPEAT/ENDREP |
+| Entity types interpreted | LINE 49,345 · LWPOLYLINE 827 · ARC 812 · POINT 789 · INSERT 566 · DIMENSION 294 (ARC_DIMENSION included) · MTEXT 308 · SOLID 266 · ELLIPSE 201 · CIRCLE 185 · 3DFACE 182 · TEXT 116 · ATTDEF 77 · POLYLINE (2D) 66 · SPLINE 48 · ATTRIB 31 · POLYLINE (3D) 27 · LEADER 20 · TRACE 20 · HATCH 28 · VIEWPORT 64 · RAY 22 · XLINE 18 · WIPEOUT 32 · MLINE 20 · TOLERANCE 18 -- over top-level and block entities |
+| Kept as `UNKNOWN` | IMAGE 70 · ACAD_PROXY_ENTITY 54 · REGION 36 · MULTILEADER 24 · 3DSOLID 20 · ACAD_TABLE 16 · SHAPE 16 · LIGHT 12 · and smaller counts of surfaces, meshes, underlays and pre-R10 REPEAT/ENDREP |
 
 An `UNKNOWN` entity keeps its reference ID, layer, colour and type name; a consumer sees that it is there and what it is called.
 

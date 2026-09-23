@@ -58,6 +58,7 @@ fn read_text(text: &str, warnings: Vec<String>) -> Result<CadDatabase, ReadError
         ordinal: 0,
         layers: BTreeMap::new(),
         dim_styles: BTreeMap::new(),
+        mlinestyles: BTreeMap::new(),
         blocks: BTreeMap::new(),
         warnings,
     };
@@ -72,6 +73,8 @@ struct Reader<'a, 'b> {
     ordinal: u64,
     layers: BTreeMap<String, LayerRecord>,
     dim_styles: BTreeMap<String, DimStyleRecord>,
+    /// MLINESTYLE name -> each line's offset, in the style's order.
+    mlinestyles: BTreeMap<String, Vec<f64>>,
     blocks: BTreeMap<String, BlockRecord>,
     /// What the decoding reported, then what each entity reported, in the
     /// order they were read.
@@ -141,8 +144,9 @@ impl<'a, 'b> Reader<'a, 'b> {
                         "TABLES" => self.tables()?,
                         "BLOCKS" => self.blocks()?,
                         "ENTITIES" => self.entities()?,
-                        // HEADER, CLASSES, OBJECTS, THUMBNAILIMAGE: nothing the
-                        // model carries yet.
+                        "OBJECTS" => self.objects()?,
+                        // HEADER, CLASSES, THUMBNAILIMAGE: nothing the model
+                        // carries yet.
                         _ => self.skip_to("ENDSEC")?,
                     }
                 }
@@ -173,6 +177,41 @@ impl<'a, 'b> Reader<'a, 'b> {
                         "DIMSTYLE" => self.dim_style_table()?,
                         _ => self.skip_to("ENDTAB")?,
                     }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// The OBJECTS section: of its objects, the model carries the
+    /// multiline styles -- each style's line offsets (49), in its order.
+    fn objects(&mut self) -> Result<(), ReadError> {
+        loop {
+            let Some(p) = self.next() else {
+                return Err(self.structure("the text ends inside OBJECTS"));
+            };
+            match (p.code, p.value) {
+                (0, "ENDSEC") => return Ok(()),
+                (0, "MLINESTYLE") => {
+                    let record = self.record();
+                    let Some(name) = record.iter().find(|p| p.code == 2) else {
+                        continue;
+                    };
+                    let offsets = record
+                        .iter()
+                        .filter(|p| p.code == 49)
+                        .map(|p| {
+                            p.value
+                                .trim()
+                                .parse::<f64>()
+                                .map_err(|_| ReadError::BadNumber {
+                                    line: p.line,
+                                    code: 49,
+                                    text: p.value.to_string(),
+                                })
+                        })
+                        .collect::<Result<Vec<f64>, ReadError>>()?;
+                    self.mlinestyles.insert(name.value.to_string(), offsets);
                 }
                 _ => {}
             }
@@ -467,6 +506,7 @@ impl<'a, 'b> Reader<'a, 'b> {
         let Reader {
             layers,
             dim_styles,
+            mlinestyles,
             mut blocks,
             warnings,
             ..
@@ -485,7 +525,7 @@ impl<'a, 'b> Reader<'a, 'b> {
             .collect();
         for block in blocks.values_mut() {
             for e in &mut block.entities {
-                resolve_names(e, &layers, &block_names, &dim_styles);
+                resolve_names(e, &layers, &block_names, &dim_styles, &mlinestyles);
                 resolve_entity_refs(e, &ids);
             }
         }
@@ -507,7 +547,7 @@ impl<'a, 'b> Reader<'a, 'b> {
                 layers,
                 dim_styles,
                 block_records: blocks,
-                ..Tables::default()
+                mlinestyles,
             },
             read_diagnostics: ReadDiagnostics { warnings },
         }
@@ -527,8 +567,16 @@ fn resolve_names(
     layers: &BTreeMap<String, LayerRecord>,
     blocks: &[String],
     dim_styles: &BTreeMap<String, DimStyleRecord>,
+    mlinestyles: &BTreeMap<String, Vec<f64>>,
 ) {
     resolve_layer(e.common_mut(), layers);
+    if let Entity::MLine(m) = e {
+        if let Ref::Unresolved(name) = &mut m.mlinestyle_name {
+            if mlinestyles.contains_key(name.as_str()) {
+                m.mlinestyle_name = Ref::Resolved(std::mem::take(name));
+            }
+        }
+    }
     // Every entity that names a dimension style, not only the dimension: a
     // leader names one too, and resolving it for one entity and not the
     // other would make the same reference read differently depending on

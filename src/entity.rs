@@ -7,9 +7,10 @@ use uncad_model::model::{
     ArcEntity, AttdefEntity, AttribEntity, CircleEntity, Confidence, DimensionEntity,
     DimensionKind, DimensionPoints, EllipseEntity, Entity, EntityCommon, EntityId, Face3DEntity,
     HatchEntity, InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LineEntity,
-    LwPolylineEntity, MTextAttachment, MTextEntity, Origin, Point2D, Point3D, PointEntity,
-    PolylineVertex, RayEntity, Ref, SolidEntity, SplineEntity, TextEntity, TextHorizontalAlignment,
-    TextOverride, TextVerticalAlignment, ToleranceEntity, ViewportEntity, WipeoutEntity,
+    LwPolylineEntity, MLineEntity, MLineVertex, MTextAttachment, MTextEntity, Origin, Point2D,
+    Point3D, PointEntity, PolylineVertex, RayEntity, Ref, SolidEntity, SplineEntity, TextEntity,
+    TextHorizontalAlignment, TextOverride, TextVerticalAlignment, ToleranceEntity, ViewportEntity,
+    WipeoutEntity,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -468,6 +469,23 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             }))
             .filter(|d| d.x != 0.0 || d.y != 0.0 || d.z != 0.0),
             style_name: name_ref(text(pairs, 3)),
+        }),
+        // Each vertex writes its point (11), its segment's direction (12)
+        // and its miter (13), then its elements' parameters; the model
+        // carries the point and the miter.
+        "MLINE" => Entity::MLine(MLineEntity {
+            common,
+            vertices: repeated_point3(pairs, 11)?
+                .into_iter()
+                .zip(repeated_point3(pairs, 13)?)
+                .map(|(point, miter_direction)| MLineVertex {
+                    point,
+                    miter_direction,
+                })
+                .collect(),
+            // 71 bit 2: closed.
+            closed: int(pairs, 71)?.is_some_and(|f| f & 2 != 0),
+            mlinestyle_name: name_ref(text(pairs, 2)),
         }),
         "WIPEOUT" => Entity::Wipeout(WipeoutEntity {
             common,

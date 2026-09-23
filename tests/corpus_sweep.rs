@@ -165,10 +165,11 @@ fn corpus_sweep() {
     // Read in order, without a structure diagnostic in the corpus.
     assert_eq!(s.known.get("HATCH"), Some(&28));
     assert_eq!(s.unknown.get("HATCH"), None);
-    // Feature control frames and wipeouts.
+    // Feature control frames, wipeouts and multilines.
     assert_eq!(s.known.get("TOLERANCE"), Some(&18));
     assert_eq!(s.known.get("WIPEOUT"), Some(&32));
-    for t in ["TOLERANCE", "WIPEOUT"] {
+    assert_eq!(s.known.get("MLINE"), Some(&20));
+    for t in ["TOLERANCE", "WIPEOUT", "MLINE"] {
         assert_eq!(s.unknown.get(t), None, "{t}");
     }
     for t in ["POINT", "SOLID", "TRACE", "3DFACE"] {
