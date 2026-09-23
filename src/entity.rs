@@ -400,6 +400,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 },
                 rotation: radians(pairs, 50)?,
                 attribs: Vec::new(),
+                extrusion: extrusion(pairs)?,
             })
         }
         "DIMENSION" | "ARC_DIMENSION" => Entity::Dimension(DimensionEntity {
