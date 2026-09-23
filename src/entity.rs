@@ -383,6 +383,8 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 alignment_point,
                 // A fraction of the normal width: absent is 1.
                 width_factor: num_or(pairs, 41, 1.0)?,
+                elevation: num_or(pairs, 30, 0.0)?,
+                extrusion: extrusion(pairs)?,
             })
         }
         "ATTRIB" => {
@@ -399,6 +401,8 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 vertical_alignment,
                 alignment_point,
                 width_factor: num_or(pairs, 41, 1.0)?,
+                elevation: num_or(pairs, 30, 0.0)?,
+                extrusion: extrusion(pairs)?,
             })
         }
         "ATTDEF" => {
@@ -415,6 +419,8 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 vertical_alignment,
                 alignment_point,
                 width_factor: num_or(pairs, 41, 1.0)?,
+                elevation: num_or(pairs, 30, 0.0)?,
+                extrusion: extrusion(pairs)?,
             })
         }
         "INSERT" => {
