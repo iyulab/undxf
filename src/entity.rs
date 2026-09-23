@@ -228,10 +228,24 @@ fn missing_required_groups(type_name: &str, pairs: &[Pair<'_>]) -> Vec<String> {
         .collect()
 }
 
+/// The groups every entity carries: everything before the first subclass
+/// marker after `AcDbEntity`. A type's own subclass may reuse their codes --
+/// a section object's group 62 is its indicator colour, not the entity's --
+/// so they are not looked for past it. A record without subclass markers
+/// (before R13) is all common part and type part at once.
+fn common_part<'p, 'a>(pairs: &'p [Pair<'a>]) -> &'p [Pair<'a>] {
+    let end = pairs
+        .iter()
+        .position(|p| p.code == 100 && p.value.trim() != "AcDbEntity")
+        .unwrap_or(pairs.len());
+    &pairs[..end]
+}
+
 /// Builds the entity `type_name` from its pairs.
 pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, ReadError> {
-    let common = common(pairs, ordinal)?;
-    let space = match int(pairs, 67)? {
+    let head = common_part(pairs);
+    let common = common(head, ordinal)?;
+    let space = match int(head, 67)? {
         Some(1) => Space::Paper,
         _ => Space::Model,
     };

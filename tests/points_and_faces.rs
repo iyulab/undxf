@@ -162,3 +162,13 @@ fn a_solid_reads_its_elevation_and_extrusion() {
         (0.0, 0.0, -1.0)
     );
 }
+
+#[test]
+fn an_entitys_colour_is_its_own_not_a_subclass_group_with_the_same_code() {
+    // A section object's own subclass writes a group 62 (its indicator
+    // colour); the entity's colour is the AcDbEntity part's, here absent --
+    // ByLayer.
+    let text = "  0\nSECTION\n  2\nENTITIES\n  0\nSECTIONOBJECT\n  5\n228\n100\nAcDbEntity\n  8\n0\n100\nAcDbSection\n 90\n1\n 62\n9\n  0\nENDSEC\n  0\nEOF\n";
+    let db = undxf::read_str(text).unwrap();
+    assert_eq!(db.entities[0].common().color_index, 256);
+}
