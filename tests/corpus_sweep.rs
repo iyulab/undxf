@@ -152,6 +152,14 @@ fn corpus_sweep() {
     assert_eq!(s.known.get("MTEXT"), Some(&308));
     assert_eq!(s.unknown.get("MTEXT"), None);
     assert_eq!(s.unknown.get("VIEWPORT"), Some(&64));
+    // Points and the planar and 3D faces, read since this crate learned them.
+    assert_eq!(s.known.get("POINT"), Some(&789));
+    assert_eq!(s.known.get("SOLID"), Some(&266));
+    assert_eq!(s.known.get("TRACE"), Some(&20));
+    assert_eq!(s.known.get("3DFACE"), Some(&182));
+    for t in ["POINT", "SOLID", "TRACE", "3DFACE"] {
+        assert_eq!(s.unknown.get(t), None, "{t}");
+    }
     assert_eq!(
         s.unknown.get("VERTEX"),
         None,

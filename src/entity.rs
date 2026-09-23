@@ -5,10 +5,10 @@
 use crate::pairs::{Pair, ReadError};
 use uncad_model::model::{
     ArcEntity, AttdefEntity, AttribEntity, CircleEntity, Confidence, DimensionEntity,
-    DimensionKind, DimensionPoints, EllipseEntity, Entity, EntityCommon, EntityId, InsertEntity,
-    LeaderAnnotation, LeaderEntity, LeaderPath, LineEntity, LwPolylineEntity, MTextAttachment,
-    MTextEntity, Origin, Point2D, Point3D, PolylineVertex, Ref, SplineEntity, TextEntity,
-    TextOverride,
+    DimensionKind, DimensionPoints, EllipseEntity, Entity, EntityCommon, EntityId, Face3DEntity,
+    InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LineEntity, LwPolylineEntity,
+    MTextAttachment, MTextEntity, Origin, Point2D, Point3D, PointEntity, PolylineVertex, Ref,
+    SolidEntity, SplineEntity, TextEntity, TextOverride,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -182,6 +182,16 @@ const REQUIRED_GROUPS: &[(&str, i32, &str, &str)] = &[
     ("MTEXT", 40, "text height", "0"),
     ("DIMENSION", 11, "text position", "the origin"),
     ("ARC_DIMENSION", 11, "text position", "the origin"),
+    ("POINT", 10, "position", "the origin"),
+    ("SOLID", 10, "first corner", "the origin"),
+    ("SOLID", 11, "second corner", "the origin"),
+    ("SOLID", 12, "third corner", "the origin"),
+    ("TRACE", 10, "first corner", "the origin"),
+    ("TRACE", 11, "second corner", "the origin"),
+    ("TRACE", 12, "third corner", "the origin"),
+    ("3DFACE", 10, "first corner", "the origin"),
+    ("3DFACE", 11, "second corner", "the origin"),
+    ("3DFACE", 12, "third corner", "the origin"),
 ];
 
 /// What this reader had to substitute for a required group of `type_name`
@@ -260,6 +270,44 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 common,
                 vertices,
                 closed: flags & 1 == 1,
+            })
+        }
+        "POINT" => Entity::Point(PointEntity {
+            common,
+            position: point3(pairs, 10)?,
+        }),
+        "SOLID" | "TRACE" => {
+            let corner3 = point2(pairs, 12)?;
+            // A three-cornered one leaves the fourth corner out, or writes
+            // it equal to the third; the reference says the two are the
+            // same.
+            let solid = SolidEntity {
+                common,
+                corner1: point2(pairs, 10)?,
+                corner2: point2(pairs, 11)?,
+                corner3,
+                corner4: match text(pairs, 13) {
+                    Some(_) => point2(pairs, 13)?,
+                    None => corner3,
+                },
+            };
+            if type_name == "SOLID" {
+                Entity::Solid(solid)
+            } else {
+                Entity::Trace(solid)
+            }
+        }
+        "3DFACE" => {
+            let corner3 = point3(pairs, 12)?;
+            Entity::Face3D(Face3DEntity {
+                common,
+                corner1: point3(pairs, 10)?,
+                corner2: point3(pairs, 11)?,
+                corner3,
+                corner4: match text(pairs, 13) {
+                    Some(_) => point3(pairs, 13)?,
+                    None => corner3,
+                },
             })
         }
         "TEXT" => Entity::Text(TextEntity {
