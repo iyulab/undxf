@@ -8,8 +8,8 @@ use uncad_model::model::{
     DimensionKind, DimensionPoints, EllipseEntity, Entity, EntityCommon, EntityId, Face3DEntity,
     HatchEntity, InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LineEntity,
     LwPolylineEntity, MTextAttachment, MTextEntity, Origin, Point2D, Point3D, PointEntity,
-    PolylineVertex, Ref, SolidEntity, SplineEntity, TextEntity, TextHorizontalAlignment,
-    TextOverride, TextVerticalAlignment,
+    PolylineVertex, RayEntity, Ref, SolidEntity, SplineEntity, TextEntity, TextHorizontalAlignment,
+    TextOverride, TextVerticalAlignment, ViewportEntity,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -203,6 +203,13 @@ const REQUIRED_GROUPS: &[(&str, i32, &str, &str)] = &[
     ("3DFACE", 10, "first corner", "the origin"),
     ("3DFACE", 11, "second corner", "the origin"),
     ("3DFACE", 12, "third corner", "the origin"),
+    ("RAY", 10, "base point", "the origin"),
+    ("RAY", 11, "direction", "the zero vector"),
+    ("XLINE", 10, "base point", "the origin"),
+    ("XLINE", 11, "direction", "the zero vector"),
+    ("VIEWPORT", 10, "center", "the origin"),
+    ("VIEWPORT", 40, "width", "0"),
+    ("VIEWPORT", 41, "height", "0"),
 ];
 
 /// What this reader had to substitute for a required group of `type_name`
@@ -498,6 +505,24 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 control_points: repeated_point3(pairs, 10)?,
             })
         }
+        "RAY" => Entity::Ray(RayEntity {
+            common,
+            point: point3(pairs, 10)?,
+            vector: point3(pairs, 11)?,
+        }),
+        "XLINE" => Entity::XLine(RayEntity {
+            common,
+            point: point3(pairs, 10)?,
+            vector: point3(pairs, 11)?,
+        }),
+        // A paper-space viewport's frame: where it sits on the sheet and its
+        // size there. What it looks at in model space is not carried.
+        "VIEWPORT" => Entity::Viewport(ViewportEntity {
+            common,
+            center: point3(pairs, 10)?,
+            width: num_or(pairs, 40, 0.0)?,
+            height: num_or(pairs, 41, 0.0)?,
+        }),
         "HATCH" => {
             let hatch = crate::hatch::read(pairs, &mut warnings)?;
             Entity::Hatch(HatchEntity {
