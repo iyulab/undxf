@@ -243,8 +243,21 @@ fn common_part<'p, 'a>(pairs: &'p [Pair<'a>]) -> &'p [Pair<'a>] {
     &pairs[..end]
 }
 
+/// The entity's own groups: everything before an embedded object. A
+/// multi-line attribute, for one, carries an MTEXT after a group 101 marker,
+/// and that object writes its own insertion point, height and text under
+/// the same codes as the attribute -- they are not the attribute's.
+fn own_part<'p, 'a>(pairs: &'p [Pair<'a>]) -> &'p [Pair<'a>] {
+    let end = pairs
+        .iter()
+        .position(|p| p.code == 101)
+        .unwrap_or(pairs.len());
+    &pairs[..end]
+}
+
 /// Builds the entity `type_name` from its pairs.
 pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, ReadError> {
+    let pairs = own_part(pairs);
     let head = common_part(pairs);
     let common = common(head, ordinal)?;
     let space = match int(head, 67)? {

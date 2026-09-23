@@ -115,3 +115,24 @@ fn an_mtext_carries_the_width_of_the_box_it_wraps_in() {
     // No box: each paragraph is one line.
     assert_eq!(mtext(None), 0.0);
 }
+
+#[test]
+fn an_attributes_embedded_mtext_does_not_stand_in_for_its_own_groups() {
+    // A multi-line attribute: its own groups say nothing of alignment or
+    // width (so left, baseline, normal width), then an embedded MTEXT after
+    // group 101 writes 11, 41 and 72 -- its direction, box width and drawing
+    // direction, not the attribute's alignment point, width factor and
+    // horizontal alignment.
+    let text = "  0\nSECTION\n  2\nENTITIES\n  0\nATTRIB\n  5\n2B\n100\nAcDbEntity\n  8\n0\n100\nAcDbText\n 10\n1\n 20\n2\n 30\n0\n 40\n2.5\n  1\nOWN\n100\nAcDbAttribute\n  2\nTAG\n 70\n0\n101\nEmbedded Object\n 10\n90\n 20\n90\n 11\n1\n 21\n0\n 41\n90\n 72\n2\n  1\nEMBEDDED\n  0\nENDSEC\n  0\nEOF\n";
+    let db = undxf::read_str(text).unwrap();
+    let uncad_model::model::Entity::Attrib(a) = &db.entities[0] else {
+        panic!("an ATTRIB, got {:?}", db.entities[0]);
+    };
+    assert_eq!(a.text, "OWN");
+    assert_eq!(a.alignment_point, None);
+    assert_eq!(a.width_factor, 1.0);
+    assert_eq!(
+        a.horizontal_alignment,
+        uncad_model::model::TextHorizontalAlignment::Left
+    );
+}

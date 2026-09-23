@@ -81,6 +81,10 @@ A dimension's group 3 resolves against this table, so a dimension naming a style
 declares comes back resolved, and one naming a style it does not comes back unresolved, carrying
 the name.
 
+## Which groups are an entity's own
+
+An entity's common groups -- handle, layer, colour, visibility, space -- are read from its common part only, before the first subclass marker after `AcDbEntity`: a subclass may use the same codes for something else (a section object's group 62 is its indicator colour). A record that embeds an object after a group 101 marker -- a multi-line attribute's MTEXT, for one -- ends at that marker: what follows are the embedded object's groups, written under the same codes as the entity's. No record in the corpus embeds an object in a type this reader interprets; the rule is the format's.
+
 ## A frame's text keeps its caret codes; a wipeout's polygon is taken out of pixels
 
 A TOLERANCE's text is carried as the file wrote it. A DXF line cannot hold a control character, so the format writes one in caret notation -- a line break in a frame's text is `^J` -- and a DWG holds the character itself; the same frame read from the two formats therefore differs by that spelling, as it does for any other text code the model carries as written. A frame written without group 11 is not turned from the x axis: its direction is (1, 0, 0).
