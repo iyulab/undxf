@@ -1,0 +1,39 @@
+[package]
+name = "undxf"
+version = "0.1.0"
+edition = "2021"
+# Minimum supported Rust version. Measured, not guessed, and checked by CI's
+# `msrv` job with exactly this toolchain -- raise the two together.
+rust-version = "1.88"
+license = "MIT"
+repository = "https://github.com/iyulab/undxf"
+homepage = "https://github.com/iyulab/undxf"
+readme = "README.md"
+description = "A second, permissive DXF reader for the uncad-model entity model: ASCII DXF in, a drawing out, nothing silently dropped."
+keywords = ["cad", "dxf", "parser"]
+categories = ["algorithms", "data-structures"]
+
+[lints.rust]
+# Plain data in, plain data out: there is no reason for `unsafe` here.
+unsafe_code = "forbid"
+
+[lints.clippy]
+# Same input, same bytes: nothing this crate outputs may depend on a hash
+# collection's iteration order, which `std` randomizes per instance. The main
+# guard is clippy.toml's `disallowed-types`; this restriction lint additionally
+# covers `for` loops over any other hash-based type.
+iter_over_hash_type = "warn"
+
+[dependencies]
+# The model the drawing is expressed in. A version dependency, never a path:
+# this crate must build from a standalone checkout.
+uncad-model = "0.1.0"
+serde = { version = "1.0.229", features = ["derive"] }
+# The code pages a pre-2007 file stores its strings in ($DWGCODEPAGE):
+# the WHATWG encodings, which cover every ANSI_ code page the DXF
+# reference lists. Decoding only; no other feature.
+encoding_rs = "0.8"
+
+[dev-dependencies]
+# The golden models the tests read are the model's JSON form.
+serde_json = { version = "1.0.151", features = ["float_roundtrip"] }
