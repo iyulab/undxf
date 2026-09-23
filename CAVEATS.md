@@ -41,7 +41,7 @@ R14 predates LIGHT and MULTILEADER, so what the DWG twin decodes under those nam
 - **Binary DXF** is refused with an error naming line 1.
 - **Pre-R10 drawings** (`r1.4`) that are not in group-code form are refused, at line 1.
 - **Polyface and polygon meshes** (POLYLINE with flags 16 or 64) are kept as `UNKNOWN`, with their vertex count in the type name; their vertices are not folded into an entity the model does not have.
-- **Bulges** on LWPOLYLINE and POLYLINE vertices (DXF 42) are not carried -- the model has no field for them.
+- **Bulges** (DXF 42) are carried on each LWPOLYLINE and 2D POLYLINE vertex; an absent 42 is a straight segment. A 42 written before an LWPOLYLINE's first vertex belongs to no vertex and is ignored. HATCH is not read at all, so its boundary bulges are not either.
 - **A reference to a block the file does not define** is kept as an unresolved reference carrying the name. Another reader of this model reports such a reference as absent; which of the two the model's golden case should expect is an open question there.
 
 ## An arc-length dimension is named, not flagged

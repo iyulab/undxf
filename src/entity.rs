@@ -7,7 +7,8 @@ use uncad_model::model::{
     ArcEntity, AttdefEntity, AttribEntity, CircleEntity, Confidence, DimensionEntity,
     DimensionKind, DimensionPoints, EllipseEntity, Entity, EntityCommon, EntityId, InsertEntity,
     LeaderAnnotation, LeaderEntity, LeaderPath, LineEntity, LwPolylineEntity, MTextAttachment,
-    MTextEntity, Origin, Point2D, Point3D, Ref, SplineEntity, TextEntity, TextOverride,
+    MTextEntity, Origin, Point2D, Point3D, PolylineVertex, Ref, SplineEntity, TextEntity,
+    TextOverride,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -67,7 +68,7 @@ fn num(pairs: &[Pair<'_>], code: i32) -> Result<Option<f64>, ReadError> {
         .transpose()
 }
 
-fn num_or(pairs: &[Pair<'_>], code: i32, default: f64) -> Result<f64, ReadError> {
+pub(crate) fn num_or(pairs: &[Pair<'_>], code: i32, default: f64) -> Result<f64, ReadError> {
     Ok(num(pairs, code)?.unwrap_or(default))
 }
 
@@ -227,20 +228,30 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             end_angle: radians(pairs, 51)?,
         }),
         "LWPOLYLINE" => {
-            // Vertices are the 10/20 pairs in order; a 10 opens a vertex.
-            let mut vertices = Vec::new();
+            // Vertices are the 10/20 pairs in order; a 10 opens a vertex,
+            // and a 42 that follows it (before the next 10) is that vertex's
+            // bulge. An absent 42 is a straight segment.
+            let mut vertices: Vec<PolylineVertex> = Vec::new();
             let mut i = 0;
             while i < pairs.len() {
-                if pairs[i].code == 10 {
-                    let x = number(&pairs[i])?;
-                    let y = match pairs.get(i + 1) {
-                        Some(p) if p.code == 20 => {
-                            i += 1;
-                            number(p)?
+                match pairs[i].code {
+                    10 => {
+                        let x = number(&pairs[i])?;
+                        let y = match pairs.get(i + 1) {
+                            Some(p) if p.code == 20 => {
+                                i += 1;
+                                number(p)?
+                            }
+                            _ => 0.0,
+                        };
+                        vertices.push(PolylineVertex::straight(Point2D { x, y }));
+                    }
+                    42 => {
+                        if let Some(last) = vertices.last_mut() {
+                            last.bulge = number(&pairs[i])?;
                         }
-                        _ => 0.0,
-                    };
-                    vertices.push(Point2D { x, y });
+                    }
+                    _ => {}
                 }
                 i += 1;
             }

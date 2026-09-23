@@ -5,7 +5,8 @@ use crate::entity::{self, Space};
 use crate::pairs::{pairs, Pair, ReadError};
 use std::collections::{BTreeMap, BTreeSet};
 use uncad_model::model::{
-    Entity, EntityCommon, EntityId, LwPolylineEntity, Point2D, Point3D, PolylineEntity, Ref,
+    Entity, EntityCommon, EntityId, LwPolylineEntity, Point2D, Point3D, PolylineEntity,
+    PolylineVertex, Ref,
 };
 use uncad_model::tables::{BlockRecord, DimStyleRecord, LayerRecord, Tables};
 use uncad_model::{CadDatabase, ReadDiagnostics};
@@ -406,12 +407,14 @@ impl<'a, 'b> Reader<'a, 'b> {
         let Entity::Unknown { common, .. } = read.entity else {
             unreachable!("POLYLINE is read as Unknown by entity::read")
         };
-        let mut vertices: Vec<Point3D> = Vec::new();
+        // Each VERTEX's position, and its bulge (42 -- the segment to the
+        // next vertex; absent is straight). A 3D polyline has no bulge.
+        let mut vertices: Vec<(Point3D, f64)> = Vec::new();
         while self.at("VERTEX") {
             self.next();
             let vrec = self.record();
             self.ordinal += 1;
-            vertices.push(entity::point3_of(vrec)?);
+            vertices.push((entity::point3_of(vrec)?, entity::num_or(vrec, 42, 0.0)?));
         }
         self.seqend();
         let closed = flags & 1 == 1;
@@ -425,7 +428,7 @@ impl<'a, 'b> Reader<'a, 'b> {
         } else if is_3d {
             Entity::Polyline3D(PolylineEntity {
                 common,
-                vertices,
+                vertices: vertices.into_iter().map(|(p, _)| p).collect(),
                 closed,
             })
         } else {
@@ -433,7 +436,10 @@ impl<'a, 'b> Reader<'a, 'b> {
                 common,
                 vertices: vertices
                     .into_iter()
-                    .map(|p| Point2D { x: p.x, y: p.y })
+                    .map(|(p, bulge)| PolylineVertex {
+                        point: Point2D { x: p.x, y: p.y },
+                        bulge,
+                    })
                     .collect(),
                 closed,
             })
