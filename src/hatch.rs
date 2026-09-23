@@ -14,7 +14,8 @@
 
 use crate::pairs::{Pair, ReadError};
 use uncad_model::model::{
-    HatchBoundaryPath, HatchEdge, HatchGradient, HatchPatternLine, Point2D, Point3D, PolylineVertex,
+    HatchBoundaryPath, HatchEdge, HatchGradient, HatchPatternLine, HatchStyle, Point2D, Point3D,
+    PolylineVertex,
 };
 
 /// What a HATCH states besides the fields every entity carries.
@@ -25,6 +26,7 @@ pub(crate) struct Hatch {
     pub pattern_lines: Vec<HatchPatternLine>,
     pub elevation: f64,
     pub extrusion: Point3D,
+    pub style: Option<HatchStyle>,
 }
 
 /// Reads the HATCH-specific part of `pairs`, in order.
@@ -43,6 +45,7 @@ pub(crate) fn read(pairs: &[Pair<'_>], warnings: &mut Vec<String>) -> Result<Hat
         gradient: None,
         pattern_lines: Vec::new(),
         elevation: 0.0,
+        style: None,
         extrusion: Point3D {
             x: 0.0,
             y: 0.0,
@@ -88,8 +91,16 @@ pub(crate) fn read(pairs: &[Pair<'_>], warnings: &mut Vec<String>) -> Result<Hat
             }
         }
     }
-    // The pattern: its line families, each with its dashes.
+    // After the paths: the fill style (75), then the pattern.
     let rest = &c.pairs[c.at..];
+    if let Some(p) = rest
+        .iter()
+        .take_while(|p| p.code != 78)
+        .find(|p| p.code == 75)
+    {
+        hatch.style = HatchStyle::from_code(integer(p)?);
+    }
+    // The pattern: its line families, each with its dashes.
     if let Some(i) = rest.iter().position(|p| p.code == 78) {
         let mut c = Cursor {
             pairs: &rest[i..],

@@ -299,3 +299,24 @@ fn the_elevation_and_extrusion_come_from_the_header_and_default_when_absent() {
         }
     );
 }
+
+#[test]
+fn the_fill_style_after_the_paths_is_read_and_an_undefined_one_is_none() {
+    use uncad_model::model::HatchStyle;
+    let with_style = |code: &'static str| {
+        hatch(&[
+            (2, "SOLID"),
+            (70, "1"),
+            (71, "0"),
+            (91, "0"),
+            (75, code),
+            (76, "1"),
+            (98, "0"),
+        ])
+        .0
+        .style
+    };
+    assert_eq!(with_style("0"), Some(HatchStyle::Normal));
+    assert_eq!(with_style("2"), Some(HatchStyle::Ignore));
+    assert_eq!(with_style("5"), None);
+}
