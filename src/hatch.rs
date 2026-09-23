@@ -159,7 +159,12 @@ fn path(c: &mut Cursor<'_, '_>) -> Result<Result<HatchBoundaryPath, String>, Rea
             } else {
                 0.0
             };
-            vertices.push(PolylineVertex { point, bulge });
+            // A HATCH boundary has no widths.
+            vertices.push(PolylineVertex {
+                point,
+                bulge,
+                ..PolylineVertex::default()
+            });
         }
         HatchBoundaryPath::Polyline(vertices)
     } else {

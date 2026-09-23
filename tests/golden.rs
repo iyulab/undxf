@@ -70,7 +70,11 @@ fn a_truncated_file_is_an_error_that_names_the_line() {
 
 /// Every golden case whose text is ASCII reads to exactly its expected
 /// model: nested blocks (G2), two coincident lines (G6), a title block of
-/// loose texts (G7), the same title block twice (G9).
+/// loose texts (G7), the same title block twice (G9), a mirrored part (G11),
+/// curved and wide polylines (G12), justified text with styles and an
+/// invisible attribute (G13), a sheet of viewports over layers in every state
+/// with its layouts (G14), a polygon mesh (G15), and ordinate dimensions with
+/// a style that states every display variable (G16).
 #[test]
 fn the_other_ascii_cases_read_exactly_too() {
     for (name, dxf, json) in [
@@ -93,6 +97,36 @@ fn the_other_ascii_cases_read_exactly_too() {
             "g9",
             include_str!("golden/g9.dxf"),
             include_str!("golden/g9.expected.json"),
+        ),
+        (
+            "g11",
+            include_str!("golden/g11.dxf"),
+            include_str!("golden/g11.expected.json"),
+        ),
+        (
+            "g12",
+            include_str!("golden/g12.dxf"),
+            include_str!("golden/g12.expected.json"),
+        ),
+        (
+            "g13",
+            include_str!("golden/g13.dxf"),
+            include_str!("golden/g13.expected.json"),
+        ),
+        (
+            "g14",
+            include_str!("golden/g14.dxf"),
+            include_str!("golden/g14.expected.json"),
+        ),
+        (
+            "g15",
+            include_str!("golden/g15.dxf"),
+            include_str!("golden/g15.expected.json"),
+        ),
+        (
+            "g16",
+            include_str!("golden/g16.dxf"),
+            include_str!("golden/g16.expected.json"),
         ),
     ] {
         let expected: CadDatabase = serde_json::from_str(json).expect("deserializes");

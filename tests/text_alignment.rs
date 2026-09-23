@@ -2,7 +2,7 @@
 //! alignment codes, the alignment point the format writes only for an aligned
 //! text, and the width factor -- and the width of the box an MTEXT wraps in.
 
-use uncad_model::model::{Entity, Point2D, TextHorizontalAlignment, TextVerticalAlignment};
+use uncad_model::model::{Entity, HorizontalJustification, Point2D, VerticalJustification};
 use undxf::read_str;
 
 /// A DXF with one TEXT carrying `groups` after its layer, in order.
@@ -30,10 +30,10 @@ fn read(extra: &[(i32, &str)]) -> (uncad_model::model::TextEntity, Vec<String>) 
 fn a_text_that_states_no_alignment_is_left_and_baseline_at_its_normal_width() {
     let (t, warnings) = read(&[]);
     assert_eq!(
-        (t.horizontal_alignment, t.vertical_alignment),
+        (t.horizontal_justification, t.vertical_justification),
         (
-            TextHorizontalAlignment::Left,
-            TextVerticalAlignment::Baseline
+            HorizontalJustification::Left,
+            VerticalJustification::Baseline
         )
     );
     assert_eq!(t.alignment_point, None);
@@ -45,8 +45,8 @@ fn a_text_that_states_no_alignment_is_left_and_baseline_at_its_normal_width() {
 fn an_aligned_text_carries_its_alignment_point_and_width() {
     let (t, warnings) = read(&[(41, "0.8"), (72, "2"), (11, "9"), (21, "2"), (73, "3")]);
     assert_eq!(
-        (t.horizontal_alignment, t.vertical_alignment),
-        (TextHorizontalAlignment::Right, TextVerticalAlignment::Top)
+        (t.horizontal_justification, t.vertical_justification),
+        (HorizontalJustification::Right, VerticalJustification::Top)
     );
     assert_eq!(t.alignment_point, Some(Point2D { x: 9.0, y: 2.0 }));
     assert_eq!(t.width_factor, 0.8);
@@ -65,10 +65,10 @@ fn an_alignment_point_on_a_left_baseline_text_is_not_one() {
 fn an_alignment_outside_the_format_is_reported_and_read_as_the_default() {
     let (t, warnings) = read(&[(72, "7"), (73, "9")]);
     assert_eq!(
-        (t.horizontal_alignment, t.vertical_alignment),
+        (t.horizontal_justification, t.vertical_justification),
         (
-            TextHorizontalAlignment::Left,
-            TextVerticalAlignment::Baseline
+            HorizontalJustification::Left,
+            VerticalJustification::Baseline
         )
     );
     assert_eq!(warnings.len(), 2, "{warnings:?}");
@@ -84,10 +84,10 @@ fn an_attribute_reads_its_vertical_alignment_from_74_not_73() {
         panic!("an ATTRIB, got {:?}", db.entities[0]);
     };
     assert_eq!(
-        (a.horizontal_alignment, a.vertical_alignment),
+        (a.horizontal_justification, a.vertical_justification),
         (
-            TextHorizontalAlignment::Right,
-            TextVerticalAlignment::Middle
+            HorizontalJustification::Right,
+            VerticalJustification::Middle
         )
     );
     assert_eq!(a.alignment_point, Some(Point2D { x: 40.0, y: 3.0 }));
@@ -132,7 +132,7 @@ fn an_attributes_embedded_mtext_does_not_stand_in_for_its_own_groups() {
     assert_eq!(a.alignment_point, None);
     assert_eq!(a.width_factor, 1.0);
     assert_eq!(
-        a.horizontal_alignment,
-        uncad_model::model::TextHorizontalAlignment::Left
+        a.horizontal_justification,
+        uncad_model::model::HorizontalJustification::Left
     );
 }

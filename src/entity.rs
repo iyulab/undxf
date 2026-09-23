@@ -4,13 +4,13 @@
 
 use crate::pairs::{Pair, ReadError};
 use uncad_model::model::{
-    ArcEntity, AttdefEntity, AttribEntity, CircleEntity, Confidence, DimensionEntity,
-    DimensionKind, DimensionPoints, EllipseEntity, Entity, EntityCommon, EntityId, Face3DEntity,
-    HatchEntity, InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LineEntity,
-    LwPolylineEntity, MLineEntity, MLineVertex, MTextAttachment, MTextEntity, Origin, Point2D,
-    Point3D, PointEntity, PolylineVertex, RayEntity, Ref, SolidEntity, SplineEntity, TextEntity,
-    TextHorizontalAlignment, TextOverride, TextVerticalAlignment, ToleranceEntity, ViewportEntity,
-    WipeoutEntity,
+    ArcEntity, AttdefEntity, AttribEntity, AttributeFlags, CircleEntity, Confidence,
+    DimensionEntity, DimensionKind, DimensionPoints, EllipseEntity, Entity, EntityCommon, EntityId,
+    Face3DEntity, HatchEntity, HorizontalJustification, InsertEntity, LeaderAnnotation,
+    LeaderEntity, LeaderPath, LineEntity, LwPolylineEntity, MLineEntity, MLineVertex,
+    MTextAttachment, MTextEntity, OrdinateAxis, Origin, Point2D, Point3D, PointEntity,
+    PolylineVertex, RayEntity, Ref, SolidEntity, SplineEntity, TextEntity, TextOverride,
+    ToleranceEntity, VerticalJustification, ViewportEntity, ViewportView, WipeoutEntity,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -290,7 +290,9 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
         "LWPOLYLINE" => {
             // Vertices are the 10/20 pairs in order; a 10 opens a vertex,
             // and a 42 that follows it (before the next 10) is that vertex's
-            // bulge. An absent 42 is a straight segment.
+            // bulge, a 40 and a 41 its segment's start and end widths. An
+            // absent 42 is a straight segment, an absent width none of the
+            // vertex's own.
             let mut vertices: Vec<PolylineVertex> = Vec::new();
             let mut i = 0;
             while i < pairs.len() {
@@ -306,9 +308,14 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                         };
                         vertices.push(PolylineVertex::straight(Point2D { x, y }));
                     }
-                    42 => {
+                    code @ 40..=42 => {
                         if let Some(last) = vertices.last_mut() {
-                            last.bulge = number(&pairs[i])?;
+                            let value = number(&pairs[i])?;
+                            match code {
+                                40 => last.start_width = value,
+                                41 => last.end_width = value,
+                                _ => last.bulge = value,
+                            }
                         }
                     }
                     _ => {}
@@ -316,10 +323,12 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 i += 1;
             }
             let flags = int(pairs, 70)?.unwrap_or(0);
+            let const_width = num_or(pairs, 43, 0.0)?;
             Entity::LwPolyline(LwPolylineEntity {
                 common,
-                vertices,
+                vertices: without_restated_widths(vertices, const_width),
                 closed: flags & 1 == 1,
+                const_width,
                 elevation: num_or(pairs, 38, 0.0)?,
                 extrusion: extrusion(pairs)?,
             })
@@ -370,55 +379,59 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             })
         }
         "TEXT" => {
-            let (horizontal_alignment, vertical_alignment, alignment_point) =
-                placement(type_name, pairs, 73, &mut warnings)?;
+            let placement = placement(type_name, pairs, 73, &mut warnings)?;
             Entity::Text(TextEntity {
                 common,
                 start_point: point2(pairs, 10)?,
                 text_height: num_or(pairs, 40, 0.0)?,
                 text: text(pairs, 1).unwrap_or("").to_string(),
                 rotation: radians(pairs, 50)?,
-                horizontal_alignment,
-                vertical_alignment,
-                alignment_point,
-                // A fraction of the normal width: absent is 1.
-                width_factor: num_or(pairs, 41, 1.0)?,
+                horizontal_justification: placement.horizontal,
+                vertical_justification: placement.vertical,
+                alignment_point: placement.alignment_point,
+                width_factor: placement.width_factor,
+                oblique_angle: placement.oblique_angle,
+                style_name: placement.style_name,
                 elevation: num_or(pairs, 30, 0.0)?,
                 extrusion: extrusion(pairs)?,
             })
         }
         "ATTRIB" => {
-            let (horizontal_alignment, vertical_alignment, alignment_point) =
-                placement(type_name, pairs, 74, &mut warnings)?;
+            let placement = placement(type_name, pairs, 74, &mut warnings)?;
             Entity::Attrib(AttribEntity {
                 common,
                 start_point: point2(pairs, 10)?,
                 text_height: num_or(pairs, 40, 0.0)?,
                 tag: text(pairs, 2).unwrap_or("").to_string(),
+                flags: attribute_flags(pairs)?,
                 text: text(pairs, 1).unwrap_or("").to_string(),
                 rotation: radians(pairs, 50)?,
-                horizontal_alignment,
-                vertical_alignment,
-                alignment_point,
-                width_factor: num_or(pairs, 41, 1.0)?,
+                horizontal_justification: placement.horizontal,
+                vertical_justification: placement.vertical,
+                alignment_point: placement.alignment_point,
+                width_factor: placement.width_factor,
+                oblique_angle: placement.oblique_angle,
+                style_name: placement.style_name,
                 elevation: num_or(pairs, 30, 0.0)?,
                 extrusion: extrusion(pairs)?,
             })
         }
         "ATTDEF" => {
-            let (horizontal_alignment, vertical_alignment, alignment_point) =
-                placement(type_name, pairs, 74, &mut warnings)?;
+            let placement = placement(type_name, pairs, 74, &mut warnings)?;
             Entity::Attdef(AttdefEntity {
                 common,
                 start_point: point2(pairs, 10)?,
                 text_height: num_or(pairs, 40, 0.0)?,
                 tag: text(pairs, 2).unwrap_or("").to_string(),
+                flags: attribute_flags(pairs)?,
                 default_value: text(pairs, 1).unwrap_or("").to_string(),
                 rotation: radians(pairs, 50)?,
-                horizontal_alignment,
-                vertical_alignment,
-                alignment_point,
-                width_factor: num_or(pairs, 41, 1.0)?,
+                horizontal_justification: placement.horizontal,
+                vertical_justification: placement.vertical,
+                alignment_point: placement.alignment_point,
+                width_factor: placement.width_factor,
+                oblique_angle: placement.oblique_angle,
+                style_name: placement.style_name,
                 elevation: num_or(pairs, 30, 0.0)?,
                 extrusion: extrusion(pairs)?,
             })
@@ -439,24 +452,37 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 extrusion: extrusion(pairs)?,
             })
         }
-        "DIMENSION" | "ARC_DIMENSION" => Entity::Dimension(DimensionEntity {
-            common,
-            block_name: name_ref(text(pairs, 2)),
-            kind: dimension_kind(type_name, int(pairs, 70)?, pairs),
-            measurement: num(pairs, 42)?,
-            text_override: text_override(text(pairs, 1)),
-            definition_point: Some(point3(pairs, 10)?),
-            text_midpoint: point2(pairs, 11)?,
-            points: DimensionPoints {
-                extension1: optional_point3(pairs, 13)?,
-                extension2: optional_point3(pairs, 14)?,
-                radial: optional_point3(pairs, 15)?,
-                arc: optional_point3(pairs, 16)?,
-            },
-            rotation: radians(pairs, 50)?,
-            text_rotation: radians(pairs, 53)?,
-            style_name: name_ref(text(pairs, 3)),
-        }),
+        "DIMENSION" | "ARC_DIMENSION" => {
+            let flag = int(pairs, 70)?;
+            let kind = dimension_kind(type_name, flag, pairs);
+            Entity::Dimension(DimensionEntity {
+                common,
+                block_name: name_ref(text(pairs, 2)),
+                kind,
+                measurement: num(pairs, 42)?,
+                text_override: text_override(text(pairs, 1)),
+                definition_point: Some(point3(pairs, 10)?),
+                text_midpoint: point2(pairs, 11)?,
+                points: DimensionPoints {
+                    extension1: optional_point3(pairs, 13)?,
+                    extension2: optional_point3(pairs, 14)?,
+                    radial: optional_point3(pairs, 15)?,
+                    arc: optional_point3(pairs, 16)?,
+                },
+                rotation: radians(pairs, 50)?,
+                text_rotation: radians(pairs, 53)?,
+                style_name: name_ref(text(pairs, 3)),
+                // Bit 64 of group 70 says which coordinate an ordinate dimension
+                // measures; on any other kind it means nothing.
+                ordinate_axis: (kind == Some(DimensionKind::Ordinate)).then(|| {
+                    if flag.unwrap_or(0) & 64 != 0 {
+                        OrdinateAxis::X
+                    } else {
+                        OrdinateAxis::Y
+                    }
+                }),
+            })
+        }
         // A feature control frame: its text is the frame's contents, symbol
         // codes and all, as the file wrote it.
         "TOLERANCE" => Entity::Tolerance(ToleranceEntity {
@@ -492,6 +518,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             // 71 bit 2: closed.
             closed: int(pairs, 71)?.is_some_and(|f| f & 2 != 0),
             mlinestyle_name: name_ref(text(pairs, 2)),
+            scale: num(pairs, 40)?,
         }),
         "WIPEOUT" => Entity::Wipeout(WipeoutEntity {
             common,
@@ -552,6 +579,11 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             line_spacing_factor: num_or(pairs, 44, 1.0)?,
             // No box to wrap in: absent is 0.
             reference_width: num_or(pairs, 41, 0.0)?,
+            // A measurement the writing application made; a zero measures no
+            // text.
+            extents_width: num(pairs, 42)?.filter(|w| *w != 0.0),
+            extents_height: num(pairs, 43)?.filter(|h| *h != 0.0),
+            style_name: name_ref(text(pairs, 7)),
             attachment: match int(pairs, 71)? {
                 Some(1) => Some(MTextAttachment::TopLeft),
                 Some(2) => Some(MTextAttachment::TopCenter),
@@ -592,13 +624,24 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             point: point3(pairs, 10)?,
             vector: point3(pairs, 11)?,
         }),
-        // A paper-space viewport's frame: where it sits on the sheet and its
-        // size there. What it looks at in model space is not carried.
+        // A paper-space viewport: its frame on the sheet, and the view of
+        // the model it shows through it.
         "VIEWPORT" => Entity::Viewport(ViewportEntity {
             common,
             center: point3(pairs, 10)?,
             width: num_or(pairs, 40, 0.0)?,
             height: num_or(pairs, 41, 0.0)?,
+            view: viewport_view(pairs)?,
+            on: viewport_on(pairs)?,
+            viewport_id: int(pairs, 69)?.map(|id| id as i32),
+            // The frozen layers by their LAYER records' handles (341, or 331
+            // as a DXF from R2004 on writes them), resolved to names once the
+            // tables are in.
+            frozen_layers: pairs
+                .iter()
+                .filter(|p| p.code == 341 || p.code == 331)
+                .map(|p| Ref::Unresolved(p.value.trim().to_ascii_uppercase()))
+                .collect(),
         }),
         "HATCH" => {
             let hatch = crate::hatch::read(pairs, &mut warnings)?;
@@ -695,63 +738,150 @@ fn text_override(value: Option<&str>) -> TextOverride {
     }
 }
 
-/// Where a TEXT, ATTRIB or ATTDEF is aligned: its horizontal alignment (72),
-/// its vertical alignment (`vertical` -- 73 for a TEXT, 74 for an attribute,
-/// whose 73 is its field length) and its alignment point (11). An absent
-/// alignment group is the default. A value outside the format's range is
-/// reported, and read as the default rather than refused. The point is kept
-/// only for an alignment other than left and baseline -- the only case in
-/// which the format writes it.
+/// How a TEXT, ATTRIB or ATTDEF is placed beyond its start point: the
+/// groups the three share.
+struct Placement {
+    horizontal: HorizontalJustification,
+    vertical: VerticalJustification,
+    alignment_point: Option<Point2D>,
+    width_factor: f64,
+    oblique_angle: f64,
+    style_name: Ref<String>,
+}
+
+/// Reads a TEXT's, ATTRIB's or ATTDEF's [`Placement`].
+///
+/// - The justifications are 72 and `vertical` -- 73 for a TEXT, 74 for an
+///   attribute, whose 73 is its field length. An absent group is the
+///   default; a value outside the format's range is reported, and read as
+///   the default rather than refused.
+/// - The alignment point (11) is kept only for a justification other than
+///   left and baseline -- the only case in which the format writes it.
+/// - The width factor (41) is a ratio whose default is 1; a 0 is no width
+///   at all, which is what a writer that leaves the group empty means, so
+///   it is 1 too.
+/// - The oblique angle (51) is written in degrees.
+/// - The style (7) is carried by name and resolved against the STYLE table
+///   once the tables are in; an absent group is the reference's default,
+///   the style named `STANDARD`, which the reader resolves the same way.
 fn placement(
     type_name: &str,
     pairs: &[Pair<'_>],
     vertical: i32,
     warnings: &mut Vec<String>,
-) -> Result<
-    (
-        TextHorizontalAlignment,
-        TextVerticalAlignment,
-        Option<Point2D>,
-    ),
-    ReadError,
-> {
-    let h = match int(pairs, 72)? {
-        None | Some(0) => TextHorizontalAlignment::Left,
-        Some(1) => TextHorizontalAlignment::Center,
-        Some(2) => TextHorizontalAlignment::Right,
-        Some(3) => TextHorizontalAlignment::Aligned,
-        Some(4) => TextHorizontalAlignment::Middle,
-        Some(5) => TextHorizontalAlignment::Fit,
+) -> Result<Placement, ReadError> {
+    let horizontal = match int(pairs, 72)? {
+        None | Some(0) => HorizontalJustification::Left,
+        Some(1) => HorizontalJustification::Center,
+        Some(2) => HorizontalJustification::Right,
+        Some(3) => HorizontalJustification::Aligned,
+        Some(4) => HorizontalJustification::Middle,
+        Some(5) => HorizontalJustification::Fit,
         Some(other) => {
             warnings.push(format!(
                 "TEXT_ALIGNMENT: a {type_name} states horizontal alignment {other} (group 72), outside 0 to 5; it is read as left"
             ));
-            TextHorizontalAlignment::Left
+            HorizontalJustification::Left
         }
     };
-    let v = match int(pairs, vertical)? {
-        None | Some(0) => TextVerticalAlignment::Baseline,
-        Some(1) => TextVerticalAlignment::Bottom,
-        Some(2) => TextVerticalAlignment::Middle,
-        Some(3) => TextVerticalAlignment::Top,
+    let vertical_justification = match int(pairs, vertical)? {
+        None | Some(0) => VerticalJustification::Baseline,
+        Some(1) => VerticalJustification::Bottom,
+        Some(2) => VerticalJustification::Middle,
+        Some(3) => VerticalJustification::Top,
         Some(other) => {
             warnings.push(format!(
                 "TEXT_ALIGNMENT: a {type_name} states vertical alignment {other} (group {vertical}), outside 0 to 3; it is read as baseline"
             ));
-            TextVerticalAlignment::Baseline
+            VerticalJustification::Baseline
         }
     };
-    let aligned = (h, v)
-        != (
-            TextHorizontalAlignment::Left,
-            TextVerticalAlignment::Baseline,
-        );
-    let point = if aligned {
-        optional_point2(pairs, 11)?
-    } else {
-        None
+    let justified = horizontal != HorizontalJustification::Left
+        || vertical_justification != VerticalJustification::Baseline;
+    Ok(Placement {
+        horizontal,
+        vertical: vertical_justification,
+        alignment_point: if justified {
+            optional_point2(pairs, 11)?
+        } else {
+            None
+        },
+        width_factor: num(pairs, 41)?.filter(|w| *w != 0.0).unwrap_or(1.0),
+        oblique_angle: radians(pairs, 51)?,
+        style_name: name_ref(text(pairs, 7)),
+    })
+}
+
+/// An ATTRIB's or ATTDEF's flags (70), one per bit as the reference names
+/// them: 1 invisible, 2 constant, 4 verify, 8 preset. An absent group is no
+/// flag set.
+fn attribute_flags(pairs: &[Pair<'_>]) -> Result<AttributeFlags, ReadError> {
+    let flags = int(pairs, 70)?.unwrap_or(0);
+    Ok(AttributeFlags {
+        invisible: flags & 1 != 0,
+        constant: flags & 2 != 0,
+        verify: flags & 4 != 0,
+        preset: flags & 8 != 0,
+    })
+}
+
+/// A polyline's vertices as the model carries them: a file that states the
+/// constant width again on every vertex, at both ends, draws the same
+/// polyline as one that states it only as the constant width, and the two
+/// read the same -- vertices with no width of their own.
+pub(crate) fn without_restated_widths(
+    mut vertices: Vec<PolylineVertex>,
+    const_width: f64,
+) -> Vec<PolylineVertex> {
+    let restated = const_width != 0.0
+        && vertices
+            .iter()
+            .all(|v| v.start_width == const_width && v.end_width == const_width);
+    if restated {
+        for v in &mut vertices {
+            v.start_width = 0.0;
+            v.end_width = 0.0;
+        }
+    }
+    vertices
+}
+
+/// Whether a viewport is on. From R2000 on the record states it as bit
+/// 0x20000 of its status flags (90), set when it is off -- the same bit the
+/// binary format keeps. Group 68 is its place in the stack of active
+/// viewports, and 0 there is also what a viewport of a layout that is not
+/// the current one is written with, on or not, so it is read only where
+/// there are no status flags: 0 off, -1 or a place in the stack on.
+fn viewport_on(pairs: &[Pair<'_>]) -> Result<Option<bool>, ReadError> {
+    if let Some(flags) = int(pairs, 90)? {
+        return Ok(Some(flags & 0x20000 == 0));
+    }
+    Ok(int(pairs, 68)?.map(|on| on != 0))
+}
+
+/// What a viewport shows of the model (12, 45, 17, 16, 51, 42). A record
+/// that writes no view centre carries no view -- a viewport older than R2000
+/// keeps it in extended data, which is not read. A zero view direction is
+/// not a direction and reads as a plan view.
+fn viewport_view(pairs: &[Pair<'_>]) -> Result<Option<ViewportView>, ReadError> {
+    let Some(center) = optional_point2(pairs, 12)? else {
+        return Ok(None);
     };
-    Ok((h, v, point))
+    let direction = optional_point3(pairs, 16)?
+        .filter(|d| d.x != 0.0 || d.y != 0.0 || d.z != 0.0)
+        .unwrap_or(Point3D {
+            x: 0.0,
+            y: 0.0,
+            z: 1.0,
+        });
+    Ok(Some(ViewportView {
+        center,
+        height: num_or(pairs, 45, 0.0)?,
+        target: point3(pairs, 17)?,
+        direction,
+        twist: radians(pairs, 51)?,
+        lens_length: num_or(pairs, 42, 50.0)?,
+    }))
 }
 
 /// A 2D point the file may leave out: absent when its x group is.

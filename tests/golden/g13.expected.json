@@ -1,71 +1,6 @@
 {
   "entities": [
     {
-      "type": "LWPOLYLINE",
-      "common": {
-        "id": 263,
-        "origin": "VECTOR",
-        "confidence": "HIGH",
-        "source_handle": {
-          "type": "RESOLVED",
-          "data": "107"
-        },
-        "layer": {
-          "type": "RESOLVED",
-          "data": "TITLE"
-        },
-        "color_index": 256,
-        "true_color": null,
-        "invisible": false
-      },
-      "vertices": [
-        {
-          "point": {
-            "x": 100.0,
-            "y": -60.0
-          },
-          "bulge": 0.0,
-          "start_width": 0.0,
-          "end_width": 0.0
-        },
-        {
-          "point": {
-            "x": 180.0,
-            "y": -60.0
-          },
-          "bulge": 0.5,
-          "start_width": 0.0,
-          "end_width": 0.0
-        },
-        {
-          "point": {
-            "x": 180.0,
-            "y": -40.0
-          },
-          "bulge": 0.0,
-          "start_width": 0.0,
-          "end_width": 0.0
-        },
-        {
-          "point": {
-            "x": 100.0,
-            "y": -40.0
-          },
-          "bulge": -0.5,
-          "start_width": 0.0,
-          "end_width": 0.0
-        }
-      ],
-      "closed": true,
-      "const_width": 0.0,
-      "elevation": 0.0,
-      "extrusion": {
-        "x": 0.0,
-        "y": 0.0,
-        "z": 1.0
-      }
-    },
-    {
       "type": "TEXT",
       "common": {
         "id": 264,
@@ -77,18 +12,18 @@
         },
         "layer": {
           "type": "RESOLVED",
-          "data": "TITLE"
+          "data": "TEXT"
         },
         "color_index": 256,
         "true_color": null,
         "invisible": false
       },
       "start_point": {
-        "x": 102.0,
-        "y": -45.0
+        "x": 0.0,
+        "y": 0.0
       },
-      "text_height": 3.5,
-      "text": "DWG NO",
+      "text_height": 2.5,
+      "text": "LEFT",
       "rotation": 0.0,
       "horizontal_justification": "LEFT",
       "vertical_justification": "BASELINE",
@@ -96,7 +31,8 @@
       "width_factor": 1.0,
       "oblique_angle": 0.0,
       "style_name": {
-        "type": "ABSENT"
+        "type": "RESOLVED",
+        "data": "STANDARD"
       },
       "elevation": 0.0,
       "extrusion": {
@@ -117,26 +53,30 @@
         },
         "layer": {
           "type": "RESOLVED",
-          "data": "TITLE"
+          "data": "TEXT"
         },
         "color_index": 256,
         "true_color": null,
         "invisible": false
       },
       "start_point": {
-        "x": 130.0,
-        "y": -45.0
+        "x": 43.0,
+        "y": 0.0
       },
-      "text_height": 3.5,
-      "text": "BP-1042",
+      "text_height": 2.5,
+      "text": "CENTER",
       "rotation": 0.0,
-      "horizontal_justification": "LEFT",
+      "horizontal_justification": "CENTER",
       "vertical_justification": "BASELINE",
-      "alignment_point": null,
+      "alignment_point": {
+        "x": 50.0,
+        "y": 0.0
+      },
       "width_factor": 1.0,
       "oblique_angle": 0.0,
       "style_name": {
-        "type": "ABSENT"
+        "type": "RESOLVED",
+        "data": "ROMANS"
       },
       "elevation": 0.0,
       "extrusion": {
@@ -157,26 +97,30 @@
         },
         "layer": {
           "type": "RESOLVED",
-          "data": "TITLE"
+          "data": "TEXT"
         },
         "color_index": 256,
         "true_color": null,
         "invisible": false
       },
       "start_point": {
-        "x": 102.0,
-        "y": -52.0
+        "x": 88.0,
+        "y": -2.5
       },
-      "text_height": 3.5,
-      "text": "REV",
+      "text_height": 2.5,
+      "text": "RIGHT TOP",
       "rotation": 0.0,
-      "horizontal_justification": "LEFT",
-      "vertical_justification": "BASELINE",
-      "alignment_point": null,
+      "horizontal_justification": "RIGHT",
+      "vertical_justification": "TOP",
+      "alignment_point": {
+        "x": 100.0,
+        "y": 0.0
+      },
       "width_factor": 1.0,
       "oblique_angle": 0.0,
       "style_name": {
-        "type": "ABSENT"
+        "type": "RESOLVED",
+        "data": "STANDARD"
       },
       "elevation": 0.0,
       "extrusion": {
@@ -197,26 +141,30 @@
         },
         "layer": {
           "type": "RESOLVED",
-          "data": "TITLE"
+          "data": "TEXT"
         },
         "color_index": 256,
         "true_color": null,
         "invisible": false
       },
       "start_point": {
-        "x": 130.0,
-        "y": -52.0
+        "x": 44.0,
+        "y": 18.75
       },
-      "text_height": 3.5,
-      "text": "B",
+      "text_height": 2.5,
+      "text": "MIDDLE",
       "rotation": 0.0,
-      "horizontal_justification": "LEFT",
+      "horizontal_justification": "MIDDLE",
       "vertical_justification": "BASELINE",
-      "alignment_point": null,
-      "width_factor": 1.0,
+      "alignment_point": {
+        "x": 50.0,
+        "y": 20.0
+      },
+      "width_factor": 0.8,
       "oblique_angle": 0.0,
       "style_name": {
-        "type": "ABSENT"
+        "type": "RESOLVED",
+        "data": "ROMANS"
       },
       "elevation": 0.0,
       "extrusion": {
@@ -237,26 +185,30 @@
         },
         "layer": {
           "type": "RESOLVED",
-          "data": "TITLE"
+          "data": "TEXT"
         },
         "color_index": 256,
         "true_color": null,
         "invisible": false
       },
       "start_point": {
-        "x": 102.0,
-        "y": -59.0
+        "x": 0.0,
+        "y": 40.0
       },
-      "text_height": 3.5,
-      "text": "MATERIAL",
+      "text_height": 2.5,
+      "text": "ALIGNED",
       "rotation": 0.0,
-      "horizontal_justification": "LEFT",
+      "horizontal_justification": "ALIGNED",
       "vertical_justification": "BASELINE",
-      "alignment_point": null,
+      "alignment_point": {
+        "x": 60.0,
+        "y": 40.0
+      },
       "width_factor": 1.0,
-      "oblique_angle": 0.0,
+      "oblique_angle": 0.2617993877991494,
       "style_name": {
-        "type": "ABSENT"
+        "type": "RESOLVED",
+        "data": "STANDARD"
       },
       "elevation": 0.0,
       "extrusion": {
@@ -277,26 +229,30 @@
         },
         "layer": {
           "type": "RESOLVED",
-          "data": "TITLE"
+          "data": "TEXT"
         },
         "color_index": 256,
         "true_color": null,
         "invisible": false
       },
       "start_point": {
-        "x": 130.0,
-        "y": -59.0
+        "x": 0.0,
+        "y": 60.0
       },
-      "text_height": 3.5,
-      "text": "SS400",
+      "text_height": 2.5,
+      "text": "FIT",
       "rotation": 0.0,
-      "horizontal_justification": "LEFT",
+      "horizontal_justification": "FIT",
       "vertical_justification": "BASELINE",
-      "alignment_point": null,
-      "width_factor": 1.0,
+      "alignment_point": {
+        "x": 60.0,
+        "y": 60.0
+      },
+      "width_factor": 2.5,
       "oblique_angle": 0.0,
       "style_name": {
-        "type": "ABSENT"
+        "type": "RESOLVED",
+        "data": "STANDARD"
       },
       "elevation": 0.0,
       "extrusion": {
@@ -306,7 +262,7 @@
       }
     },
     {
-      "type": "CIRCLE",
+      "type": "TEXT",
       "common": {
         "id": 270,
         "origin": "VECTOR",
@@ -317,147 +273,30 @@
         },
         "layer": {
           "type": "RESOLVED",
-          "data": "TITLE"
-        },
-        "color_index": 256,
-        "true_color": null,
-        "invisible": false
-      },
-      "center": {
-        "x": -170.0,
-        "y": -50.0,
-        "z": 0.0
-      },
-      "radius": 3.0,
-      "extrusion": {
-        "x": 0.0,
-        "y": 0.0,
-        "z": -1.0
-      }
-    },
-    {
-      "type": "ARC",
-      "common": {
-        "id": 271,
-        "origin": "VECTOR",
-        "confidence": "HIGH",
-        "source_handle": {
-          "type": "RESOLVED",
-          "data": "10F"
-        },
-        "layer": {
-          "type": "RESOLVED",
-          "data": "TITLE"
-        },
-        "color_index": 256,
-        "true_color": null,
-        "invisible": false
-      },
-      "center": {
-        "x": -110.0,
-        "y": -50.0,
-        "z": 0.0
-      },
-      "radius": 4.0,
-      "start_angle": 0.5235987755982988,
-      "end_angle": 2.6179938779914944,
-      "extrusion": {
-        "x": 0.0,
-        "y": 0.0,
-        "z": -1.0
-      }
-    },
-    {
-      "type": "LWPOLYLINE",
-      "common": {
-        "id": 272,
-        "origin": "VECTOR",
-        "confidence": "HIGH",
-        "source_handle": {
-          "type": "RESOLVED",
-          "data": "110"
-        },
-        "layer": {
-          "type": "RESOLVED",
-          "data": "TITLE"
-        },
-        "color_index": 256,
-        "true_color": null,
-        "invisible": false
-      },
-      "vertices": [
-        {
-          "point": {
-            "x": -150.0,
-            "y": -58.0
-          },
-          "bulge": 0.0,
-          "start_width": 0.0,
-          "end_width": 0.0
-        },
-        {
-          "point": {
-            "x": -140.0,
-            "y": -58.0
-          },
-          "bulge": 0.5,
-          "start_width": 0.0,
-          "end_width": 0.0
-        },
-        {
-          "point": {
-            "x": -145.0,
-            "y": -53.0
-          },
-          "bulge": 0.0,
-          "start_width": 0.0,
-          "end_width": 0.0
-        }
-      ],
-      "closed": true,
-      "const_width": 0.0,
-      "elevation": 0.0,
-      "extrusion": {
-        "x": 0.0,
-        "y": 0.0,
-        "z": -1.0
-      }
-    },
-    {
-      "type": "TEXT",
-      "common": {
-        "id": 273,
-        "origin": "VECTOR",
-        "confidence": "HIGH",
-        "source_handle": {
-          "type": "RESOLVED",
-          "data": "111"
-        },
-        "layer": {
-          "type": "RESOLVED",
-          "data": "TITLE"
+          "data": "TEXT"
         },
         "color_index": 256,
         "true_color": null,
         "invisible": false
       },
       "start_point": {
-        "x": 128.8,
-        "y": -68.75
+        "x": 0.0,
+        "y": 79.0
       },
-      "text_height": 3.5,
-      "text": "PLATE",
+      "text_height": 2.5,
+      "text": "LEFT BOTTOM",
       "rotation": 0.0,
-      "horizontal_justification": "CENTER",
-      "vertical_justification": "MIDDLE",
+      "horizontal_justification": "LEFT",
+      "vertical_justification": "BOTTOM",
       "alignment_point": {
-        "x": 140.0,
-        "y": -67.0
+        "x": 0.0,
+        "y": 80.0
       },
-      "width_factor": 0.8,
+      "width_factor": 1.0,
       "oblique_angle": 0.0,
       "style_name": {
-        "type": "ABSENT"
+        "type": "UNRESOLVED",
+        "data": "GOST"
       },
       "elevation": 0.0,
       "extrusion": {
@@ -469,16 +308,16 @@
     {
       "type": "INSERT",
       "common": {
-        "id": 274,
+        "id": 271,
         "origin": "VECTOR",
         "confidence": "HIGH",
         "source_handle": {
           "type": "RESOLVED",
-          "data": "112"
+          "data": "10F"
         },
         "layer": {
           "type": "RESOLVED",
-          "data": "TITLE"
+          "data": "TEXT"
         },
         "color_index": 256,
         "true_color": null,
@@ -486,11 +325,11 @@
       },
       "block_name": {
         "type": "RESOLVED",
-        "data": "MARK"
+        "data": "TAG"
       },
       "insertion_point": {
-        "x": -175.0,
-        "y": -66.0,
+        "x": 120.0,
+        "y": 0.0,
         "z": 0.0
       },
       "scale": {
@@ -498,38 +337,140 @@
         "y": 1.0,
         "z": 1.0
       },
-      "rotation": 0.5235987755982988,
-      "attribs": [],
+      "rotation": 0.0,
+      "attribs": [
+        {
+          "common": {
+            "id": 272,
+            "origin": "VECTOR",
+            "confidence": "HIGH",
+            "source_handle": {
+              "type": "RESOLVED",
+              "data": "110"
+            },
+            "layer": {
+              "type": "RESOLVED",
+              "data": "TEXT"
+            },
+            "color_index": 256,
+            "true_color": null,
+            "invisible": false
+          },
+          "start_point": {
+            "x": 120.0,
+            "y": 0.0
+          },
+          "text_height": 2.5,
+          "tag": "NUMBER",
+          "flags": {
+            "invisible": false,
+            "constant": false,
+            "verify": false,
+            "preset": false
+          },
+          "text": "D-101",
+          "rotation": 0.0,
+          "horizontal_justification": "LEFT",
+          "vertical_justification": "BASELINE",
+          "alignment_point": null,
+          "width_factor": 1.0,
+          "oblique_angle": 0.0,
+          "style_name": {
+            "type": "RESOLVED",
+            "data": "STANDARD"
+          },
+          "elevation": 0.0,
+          "extrusion": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 1.0
+          }
+        },
+        {
+          "common": {
+            "id": 273,
+            "origin": "VECTOR",
+            "confidence": "HIGH",
+            "source_handle": {
+              "type": "RESOLVED",
+              "data": "111"
+            },
+            "layer": {
+              "type": "RESOLVED",
+              "data": "TEXT"
+            },
+            "color_index": 256,
+            "true_color": null,
+            "invisible": false
+          },
+          "start_point": {
+            "x": 120.0,
+            "y": -4.0
+          },
+          "text_height": 2.5,
+          "tag": "NOTE",
+          "flags": {
+            "invisible": true,
+            "constant": false,
+            "verify": false,
+            "preset": false
+          },
+          "text": "FIRE RATED",
+          "rotation": 0.0,
+          "horizontal_justification": "LEFT",
+          "vertical_justification": "BASELINE",
+          "alignment_point": null,
+          "width_factor": 1.0,
+          "oblique_angle": 0.0,
+          "style_name": {
+            "type": "RESOLVED",
+            "data": "STANDARD"
+          },
+          "elevation": 0.0,
+          "extrusion": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 1.0
+          }
+        }
+      ],
       "extrusion": {
         "x": 0.0,
         "y": 0.0,
-        "z": -1.0
+        "z": 1.0
       }
     },
     {
-      "type": "TEXT",
+      "type": "ATTRIB",
       "common": {
-        "id": 275,
+        "id": 272,
         "origin": "VECTOR",
         "confidence": "HIGH",
         "source_handle": {
           "type": "RESOLVED",
-          "data": "113"
+          "data": "110"
         },
         "layer": {
           "type": "RESOLVED",
-          "data": "TITLE"
+          "data": "TEXT"
         },
         "color_index": 256,
         "true_color": null,
         "invisible": false
       },
       "start_point": {
-        "x": -170.0,
-        "y": -72.0
+        "x": 120.0,
+        "y": 0.0
       },
       "text_height": 2.5,
-      "text": "MIRROR",
+      "tag": "NUMBER",
+      "flags": {
+        "invisible": false,
+        "constant": false,
+        "verify": false,
+        "preset": false
+      },
+      "text": "D-101",
       "rotation": 0.0,
       "horizontal_justification": "LEFT",
       "vertical_justification": "BASELINE",
@@ -537,13 +478,62 @@
       "width_factor": 1.0,
       "oblique_angle": 0.0,
       "style_name": {
-        "type": "ABSENT"
+        "type": "RESOLVED",
+        "data": "STANDARD"
       },
       "elevation": 0.0,
       "extrusion": {
         "x": 0.0,
         "y": 0.0,
-        "z": -1.0
+        "z": 1.0
+      }
+    },
+    {
+      "type": "ATTRIB",
+      "common": {
+        "id": 273,
+        "origin": "VECTOR",
+        "confidence": "HIGH",
+        "source_handle": {
+          "type": "RESOLVED",
+          "data": "111"
+        },
+        "layer": {
+          "type": "RESOLVED",
+          "data": "TEXT"
+        },
+        "color_index": 256,
+        "true_color": null,
+        "invisible": false
+      },
+      "start_point": {
+        "x": 120.0,
+        "y": -4.0
+      },
+      "text_height": 2.5,
+      "tag": "NOTE",
+      "flags": {
+        "invisible": true,
+        "constant": false,
+        "verify": false,
+        "preset": false
+      },
+      "text": "FIRE RATED",
+      "rotation": 0.0,
+      "horizontal_justification": "LEFT",
+      "vertical_justification": "BASELINE",
+      "alignment_point": null,
+      "width_factor": 1.0,
+      "oblique_angle": 0.0,
+      "style_name": {
+        "type": "RESOLVED",
+        "data": "STANDARD"
+      },
+      "elevation": 0.0,
+      "extrusion": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 1.0
       }
     }
   ],
@@ -562,8 +552,8 @@
           "data": "CONTINUOUS"
         }
       },
-      "TITLE": {
-        "name": "TITLE",
+      "TEXT": {
+        "name": "TEXT",
         "color_index": 2,
         "off": false,
         "frozen": false,
@@ -581,71 +571,6 @@
         "name": "*Model_Space",
         "entities": [
           {
-            "type": "LWPOLYLINE",
-            "common": {
-              "id": 263,
-              "origin": "VECTOR",
-              "confidence": "HIGH",
-              "source_handle": {
-                "type": "RESOLVED",
-                "data": "107"
-              },
-              "layer": {
-                "type": "RESOLVED",
-                "data": "TITLE"
-              },
-              "color_index": 256,
-              "true_color": null,
-              "invisible": false
-            },
-            "vertices": [
-              {
-                "point": {
-                  "x": 100.0,
-                  "y": -60.0
-                },
-                "bulge": 0.0,
-                "start_width": 0.0,
-                "end_width": 0.0
-              },
-              {
-                "point": {
-                  "x": 180.0,
-                  "y": -60.0
-                },
-                "bulge": 0.5,
-                "start_width": 0.0,
-                "end_width": 0.0
-              },
-              {
-                "point": {
-                  "x": 180.0,
-                  "y": -40.0
-                },
-                "bulge": 0.0,
-                "start_width": 0.0,
-                "end_width": 0.0
-              },
-              {
-                "point": {
-                  "x": 100.0,
-                  "y": -40.0
-                },
-                "bulge": -0.5,
-                "start_width": 0.0,
-                "end_width": 0.0
-              }
-            ],
-            "closed": true,
-            "const_width": 0.0,
-            "elevation": 0.0,
-            "extrusion": {
-              "x": 0.0,
-              "y": 0.0,
-              "z": 1.0
-            }
-          },
-          {
             "type": "TEXT",
             "common": {
               "id": 264,
@@ -657,18 +582,18 @@
               },
               "layer": {
                 "type": "RESOLVED",
-                "data": "TITLE"
+                "data": "TEXT"
               },
               "color_index": 256,
               "true_color": null,
               "invisible": false
             },
             "start_point": {
-              "x": 102.0,
-              "y": -45.0
+              "x": 0.0,
+              "y": 0.0
             },
-            "text_height": 3.5,
-            "text": "DWG NO",
+            "text_height": 2.5,
+            "text": "LEFT",
             "rotation": 0.0,
             "horizontal_justification": "LEFT",
             "vertical_justification": "BASELINE",
@@ -676,7 +601,8 @@
             "width_factor": 1.0,
             "oblique_angle": 0.0,
             "style_name": {
-              "type": "ABSENT"
+              "type": "RESOLVED",
+              "data": "STANDARD"
             },
             "elevation": 0.0,
             "extrusion": {
@@ -697,26 +623,30 @@
               },
               "layer": {
                 "type": "RESOLVED",
-                "data": "TITLE"
+                "data": "TEXT"
               },
               "color_index": 256,
               "true_color": null,
               "invisible": false
             },
             "start_point": {
-              "x": 130.0,
-              "y": -45.0
+              "x": 43.0,
+              "y": 0.0
             },
-            "text_height": 3.5,
-            "text": "BP-1042",
+            "text_height": 2.5,
+            "text": "CENTER",
             "rotation": 0.0,
-            "horizontal_justification": "LEFT",
+            "horizontal_justification": "CENTER",
             "vertical_justification": "BASELINE",
-            "alignment_point": null,
+            "alignment_point": {
+              "x": 50.0,
+              "y": 0.0
+            },
             "width_factor": 1.0,
             "oblique_angle": 0.0,
             "style_name": {
-              "type": "ABSENT"
+              "type": "RESOLVED",
+              "data": "ROMANS"
             },
             "elevation": 0.0,
             "extrusion": {
@@ -737,26 +667,30 @@
               },
               "layer": {
                 "type": "RESOLVED",
-                "data": "TITLE"
+                "data": "TEXT"
               },
               "color_index": 256,
               "true_color": null,
               "invisible": false
             },
             "start_point": {
-              "x": 102.0,
-              "y": -52.0
+              "x": 88.0,
+              "y": -2.5
             },
-            "text_height": 3.5,
-            "text": "REV",
+            "text_height": 2.5,
+            "text": "RIGHT TOP",
             "rotation": 0.0,
-            "horizontal_justification": "LEFT",
-            "vertical_justification": "BASELINE",
-            "alignment_point": null,
+            "horizontal_justification": "RIGHT",
+            "vertical_justification": "TOP",
+            "alignment_point": {
+              "x": 100.0,
+              "y": 0.0
+            },
             "width_factor": 1.0,
             "oblique_angle": 0.0,
             "style_name": {
-              "type": "ABSENT"
+              "type": "RESOLVED",
+              "data": "STANDARD"
             },
             "elevation": 0.0,
             "extrusion": {
@@ -777,26 +711,30 @@
               },
               "layer": {
                 "type": "RESOLVED",
-                "data": "TITLE"
+                "data": "TEXT"
               },
               "color_index": 256,
               "true_color": null,
               "invisible": false
             },
             "start_point": {
-              "x": 130.0,
-              "y": -52.0
+              "x": 44.0,
+              "y": 18.75
             },
-            "text_height": 3.5,
-            "text": "B",
+            "text_height": 2.5,
+            "text": "MIDDLE",
             "rotation": 0.0,
-            "horizontal_justification": "LEFT",
+            "horizontal_justification": "MIDDLE",
             "vertical_justification": "BASELINE",
-            "alignment_point": null,
-            "width_factor": 1.0,
+            "alignment_point": {
+              "x": 50.0,
+              "y": 20.0
+            },
+            "width_factor": 0.8,
             "oblique_angle": 0.0,
             "style_name": {
-              "type": "ABSENT"
+              "type": "RESOLVED",
+              "data": "ROMANS"
             },
             "elevation": 0.0,
             "extrusion": {
@@ -817,26 +755,30 @@
               },
               "layer": {
                 "type": "RESOLVED",
-                "data": "TITLE"
+                "data": "TEXT"
               },
               "color_index": 256,
               "true_color": null,
               "invisible": false
             },
             "start_point": {
-              "x": 102.0,
-              "y": -59.0
+              "x": 0.0,
+              "y": 40.0
             },
-            "text_height": 3.5,
-            "text": "MATERIAL",
+            "text_height": 2.5,
+            "text": "ALIGNED",
             "rotation": 0.0,
-            "horizontal_justification": "LEFT",
+            "horizontal_justification": "ALIGNED",
             "vertical_justification": "BASELINE",
-            "alignment_point": null,
+            "alignment_point": {
+              "x": 60.0,
+              "y": 40.0
+            },
             "width_factor": 1.0,
-            "oblique_angle": 0.0,
+            "oblique_angle": 0.2617993877991494,
             "style_name": {
-              "type": "ABSENT"
+              "type": "RESOLVED",
+              "data": "STANDARD"
             },
             "elevation": 0.0,
             "extrusion": {
@@ -857,26 +799,30 @@
               },
               "layer": {
                 "type": "RESOLVED",
-                "data": "TITLE"
+                "data": "TEXT"
               },
               "color_index": 256,
               "true_color": null,
               "invisible": false
             },
             "start_point": {
-              "x": 130.0,
-              "y": -59.0
+              "x": 0.0,
+              "y": 60.0
             },
-            "text_height": 3.5,
-            "text": "SS400",
+            "text_height": 2.5,
+            "text": "FIT",
             "rotation": 0.0,
-            "horizontal_justification": "LEFT",
+            "horizontal_justification": "FIT",
             "vertical_justification": "BASELINE",
-            "alignment_point": null,
-            "width_factor": 1.0,
+            "alignment_point": {
+              "x": 60.0,
+              "y": 60.0
+            },
+            "width_factor": 2.5,
             "oblique_angle": 0.0,
             "style_name": {
-              "type": "ABSENT"
+              "type": "RESOLVED",
+              "data": "STANDARD"
             },
             "elevation": 0.0,
             "extrusion": {
@@ -886,7 +832,7 @@
             }
           },
           {
-            "type": "CIRCLE",
+            "type": "TEXT",
             "common": {
               "id": 270,
               "origin": "VECTOR",
@@ -897,147 +843,30 @@
               },
               "layer": {
                 "type": "RESOLVED",
-                "data": "TITLE"
-              },
-              "color_index": 256,
-              "true_color": null,
-              "invisible": false
-            },
-            "center": {
-              "x": -170.0,
-              "y": -50.0,
-              "z": 0.0
-            },
-            "radius": 3.0,
-            "extrusion": {
-              "x": 0.0,
-              "y": 0.0,
-              "z": -1.0
-            }
-          },
-          {
-            "type": "ARC",
-            "common": {
-              "id": 271,
-              "origin": "VECTOR",
-              "confidence": "HIGH",
-              "source_handle": {
-                "type": "RESOLVED",
-                "data": "10F"
-              },
-              "layer": {
-                "type": "RESOLVED",
-                "data": "TITLE"
-              },
-              "color_index": 256,
-              "true_color": null,
-              "invisible": false
-            },
-            "center": {
-              "x": -110.0,
-              "y": -50.0,
-              "z": 0.0
-            },
-            "radius": 4.0,
-            "start_angle": 0.5235987755982988,
-            "end_angle": 2.6179938779914944,
-            "extrusion": {
-              "x": 0.0,
-              "y": 0.0,
-              "z": -1.0
-            }
-          },
-          {
-            "type": "LWPOLYLINE",
-            "common": {
-              "id": 272,
-              "origin": "VECTOR",
-              "confidence": "HIGH",
-              "source_handle": {
-                "type": "RESOLVED",
-                "data": "110"
-              },
-              "layer": {
-                "type": "RESOLVED",
-                "data": "TITLE"
-              },
-              "color_index": 256,
-              "true_color": null,
-              "invisible": false
-            },
-            "vertices": [
-              {
-                "point": {
-                  "x": -150.0,
-                  "y": -58.0
-                },
-                "bulge": 0.0,
-                "start_width": 0.0,
-                "end_width": 0.0
-              },
-              {
-                "point": {
-                  "x": -140.0,
-                  "y": -58.0
-                },
-                "bulge": 0.5,
-                "start_width": 0.0,
-                "end_width": 0.0
-              },
-              {
-                "point": {
-                  "x": -145.0,
-                  "y": -53.0
-                },
-                "bulge": 0.0,
-                "start_width": 0.0,
-                "end_width": 0.0
-              }
-            ],
-            "closed": true,
-            "const_width": 0.0,
-            "elevation": 0.0,
-            "extrusion": {
-              "x": 0.0,
-              "y": 0.0,
-              "z": -1.0
-            }
-          },
-          {
-            "type": "TEXT",
-            "common": {
-              "id": 273,
-              "origin": "VECTOR",
-              "confidence": "HIGH",
-              "source_handle": {
-                "type": "RESOLVED",
-                "data": "111"
-              },
-              "layer": {
-                "type": "RESOLVED",
-                "data": "TITLE"
+                "data": "TEXT"
               },
               "color_index": 256,
               "true_color": null,
               "invisible": false
             },
             "start_point": {
-              "x": 128.8,
-              "y": -68.75
+              "x": 0.0,
+              "y": 79.0
             },
-            "text_height": 3.5,
-            "text": "PLATE",
+            "text_height": 2.5,
+            "text": "LEFT BOTTOM",
             "rotation": 0.0,
-            "horizontal_justification": "CENTER",
-            "vertical_justification": "MIDDLE",
+            "horizontal_justification": "LEFT",
+            "vertical_justification": "BOTTOM",
             "alignment_point": {
-              "x": 140.0,
-              "y": -67.0
+              "x": 0.0,
+              "y": 80.0
             },
-            "width_factor": 0.8,
+            "width_factor": 1.0,
             "oblique_angle": 0.0,
             "style_name": {
-              "type": "ABSENT"
+              "type": "UNRESOLVED",
+              "data": "GOST"
             },
             "elevation": 0.0,
             "extrusion": {
@@ -1049,16 +878,16 @@
           {
             "type": "INSERT",
             "common": {
-              "id": 274,
+              "id": 271,
               "origin": "VECTOR",
               "confidence": "HIGH",
               "source_handle": {
                 "type": "RESOLVED",
-                "data": "112"
+                "data": "10F"
               },
               "layer": {
                 "type": "RESOLVED",
-                "data": "TITLE"
+                "data": "TEXT"
               },
               "color_index": 256,
               "true_color": null,
@@ -1066,11 +895,11 @@
             },
             "block_name": {
               "type": "RESOLVED",
-              "data": "MARK"
+              "data": "TAG"
             },
             "insertion_point": {
-              "x": -175.0,
-              "y": -66.0,
+              "x": 120.0,
+              "y": 0.0,
               "z": 0.0
             },
             "scale": {
@@ -1078,52 +907,107 @@
               "y": 1.0,
               "z": 1.0
             },
-            "rotation": 0.5235987755982988,
-            "attribs": [],
-            "extrusion": {
-              "x": 0.0,
-              "y": 0.0,
-              "z": -1.0
-            }
-          },
-          {
-            "type": "TEXT",
-            "common": {
-              "id": 275,
-              "origin": "VECTOR",
-              "confidence": "HIGH",
-              "source_handle": {
-                "type": "RESOLVED",
-                "data": "113"
-              },
-              "layer": {
-                "type": "RESOLVED",
-                "data": "TITLE"
-              },
-              "color_index": 256,
-              "true_color": null,
-              "invisible": false
-            },
-            "start_point": {
-              "x": -170.0,
-              "y": -72.0
-            },
-            "text_height": 2.5,
-            "text": "MIRROR",
             "rotation": 0.0,
-            "horizontal_justification": "LEFT",
-            "vertical_justification": "BASELINE",
-            "alignment_point": null,
-            "width_factor": 1.0,
-            "oblique_angle": 0.0,
-            "style_name": {
-              "type": "ABSENT"
-            },
-            "elevation": 0.0,
+            "attribs": [
+              {
+                "common": {
+                  "id": 272,
+                  "origin": "VECTOR",
+                  "confidence": "HIGH",
+                  "source_handle": {
+                    "type": "RESOLVED",
+                    "data": "110"
+                  },
+                  "layer": {
+                    "type": "RESOLVED",
+                    "data": "TEXT"
+                  },
+                  "color_index": 256,
+                  "true_color": null,
+                  "invisible": false
+                },
+                "start_point": {
+                  "x": 120.0,
+                  "y": 0.0
+                },
+                "text_height": 2.5,
+                "tag": "NUMBER",
+                "flags": {
+                  "invisible": false,
+                  "constant": false,
+                  "verify": false,
+                  "preset": false
+                },
+                "text": "D-101",
+                "rotation": 0.0,
+                "horizontal_justification": "LEFT",
+                "vertical_justification": "BASELINE",
+                "alignment_point": null,
+                "width_factor": 1.0,
+                "oblique_angle": 0.0,
+                "style_name": {
+                  "type": "RESOLVED",
+                  "data": "STANDARD"
+                },
+                "elevation": 0.0,
+                "extrusion": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 1.0
+                }
+              },
+              {
+                "common": {
+                  "id": 273,
+                  "origin": "VECTOR",
+                  "confidence": "HIGH",
+                  "source_handle": {
+                    "type": "RESOLVED",
+                    "data": "111"
+                  },
+                  "layer": {
+                    "type": "RESOLVED",
+                    "data": "TEXT"
+                  },
+                  "color_index": 256,
+                  "true_color": null,
+                  "invisible": false
+                },
+                "start_point": {
+                  "x": 120.0,
+                  "y": -4.0
+                },
+                "text_height": 2.5,
+                "tag": "NOTE",
+                "flags": {
+                  "invisible": true,
+                  "constant": false,
+                  "verify": false,
+                  "preset": false
+                },
+                "text": "FIRE RATED",
+                "rotation": 0.0,
+                "horizontal_justification": "LEFT",
+                "vertical_justification": "BASELINE",
+                "alignment_point": null,
+                "width_factor": 1.0,
+                "oblique_angle": 0.0,
+                "style_name": {
+                  "type": "RESOLVED",
+                  "data": "STANDARD"
+                },
+                "elevation": 0.0,
+                "extrusion": {
+                  "x": 0.0,
+                  "y": 0.0,
+                  "z": 1.0
+                }
+              }
+            ],
             "extrusion": {
               "x": 0.0,
               "y": 0.0,
-              "z": -1.0
+              "z": 1.0
             }
           }
         ]
@@ -1132,11 +1016,11 @@
         "name": "*Paper_Space",
         "entities": []
       },
-      "MARK": {
-        "name": "MARK",
+      "TAG": {
+        "name": "TAG",
         "entities": [
           {
-            "type": "LINE",
+            "type": "ATTDEF",
             "common": {
               "id": 261,
               "origin": "VECTOR",
@@ -1155,13 +1039,80 @@
             },
             "start_point": {
               "x": 0.0,
-              "y": 0.0,
-              "z": 0.0
+              "y": 0.0
             },
-            "end_point": {
-              "x": 8.0,
+            "text_height": 2.5,
+            "tag": "NUMBER",
+            "flags": {
+              "invisible": false,
+              "constant": false,
+              "verify": false,
+              "preset": false
+            },
+            "default_value": "-",
+            "rotation": 0.0,
+            "horizontal_justification": "LEFT",
+            "vertical_justification": "BASELINE",
+            "alignment_point": null,
+            "width_factor": 1.0,
+            "oblique_angle": 0.0,
+            "style_name": {
+              "type": "RESOLVED",
+              "data": "STANDARD"
+            },
+            "elevation": 0.0,
+            "extrusion": {
+              "x": 0.0,
               "y": 0.0,
-              "z": 0.0
+              "z": 1.0
+            }
+          },
+          {
+            "type": "ATTDEF",
+            "common": {
+              "id": 262,
+              "origin": "VECTOR",
+              "confidence": "HIGH",
+              "source_handle": {
+                "type": "RESOLVED",
+                "data": "106"
+              },
+              "layer": {
+                "type": "RESOLVED",
+                "data": "0"
+              },
+              "color_index": 256,
+              "true_color": null,
+              "invisible": false
+            },
+            "start_point": {
+              "x": 0.0,
+              "y": -4.0
+            },
+            "text_height": 2.5,
+            "tag": "NOTE",
+            "flags": {
+              "invisible": false,
+              "constant": false,
+              "verify": false,
+              "preset": false
+            },
+            "default_value": "-",
+            "rotation": 0.0,
+            "horizontal_justification": "LEFT",
+            "vertical_justification": "BASELINE",
+            "alignment_point": null,
+            "width_factor": 1.0,
+            "oblique_angle": 0.0,
+            "style_name": {
+              "type": "RESOLVED",
+              "data": "STANDARD"
+            },
+            "elevation": 0.0,
+            "extrusion": {
+              "x": 0.0,
+              "y": 0.0,
+              "z": 1.0
             }
           }
         ]
