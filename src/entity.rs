@@ -466,6 +466,8 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             },
             // A fraction of the default spacing: absent is 1.
             line_spacing_factor: num_or(pairs, 44, 1.0)?,
+            // No box to wrap in: absent is 0.
+            reference_width: num_or(pairs, 41, 0.0)?,
             attachment: match int(pairs, 71)? {
                 Some(1) => Some(MTextAttachment::TopLeft),
                 Some(2) => Some(MTextAttachment::TopCenter),

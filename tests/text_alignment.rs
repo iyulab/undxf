@@ -1,6 +1,6 @@
-//! TEXT, ATTRIB and ATTDEF alignment: the two alignment codes, the
-//! alignment point the format writes only for an aligned text, and the width
-//! factor.
+//! How a line of text is placed: TEXT, ATTRIB and ATTDEF alignment -- the two
+//! alignment codes, the alignment point the format writes only for an aligned
+//! text, and the width factor -- and the width of the box an MTEXT wraps in.
 
 use uncad_model::model::{Entity, Point2D, TextHorizontalAlignment, TextVerticalAlignment};
 use undxf::read_str;
@@ -93,4 +93,25 @@ fn an_attribute_reads_its_vertical_alignment_from_74_not_73() {
     assert_eq!(a.alignment_point, Some(Point2D { x: 40.0, y: 3.0 }));
     assert_eq!(a.width_factor, 0.9);
     assert!(db.read_diagnostics.is_clean(), "{:?}", db.read_diagnostics);
+}
+
+#[test]
+fn an_mtext_carries_the_width_of_the_box_it_wraps_in() {
+    let mtext = |width: Option<&str>| {
+        let mut groups = String::from(
+            "  0\nSECTION\n  2\nENTITIES\n  0\nMTEXT\n  5\n2C\n  8\n0\n 10\n0\n 20\n0\n 40\n2.5\n",
+        );
+        if let Some(w) = width {
+            groups.push_str(&format!(" 41\n{w}\n"));
+        }
+        groups.push_str("  1\nA long note\n  0\nENDSEC\n  0\nEOF\n");
+        let db = read_str(&groups).unwrap();
+        let Entity::MText(m) = &db.entities[0] else {
+            panic!("an MTEXT, got {:?}", db.entities[0]);
+        };
+        m.reference_width
+    };
+    assert_eq!(mtext(Some("60.5")), 60.5);
+    // No box: each paragraph is one line.
+    assert_eq!(mtext(None), 0.0);
 }
