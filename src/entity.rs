@@ -304,6 +304,10 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                     Some(_) => point2(pairs, 13)?,
                     None => corner3,
                 },
+                // The corners share one z in their own plane; the first
+                // corner's is the one every writer states.
+                elevation: num_or(pairs, 30, 0.0)?,
+                extrusion: extrusion(pairs)?,
             };
             if type_name == "SOLID" {
                 Entity::Solid(solid)

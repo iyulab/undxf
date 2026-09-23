@@ -132,3 +132,33 @@ fn a_3dface_reads_which_of_its_edges_are_invisible() {
     };
     assert_eq!(f.invisible_edges, [false; 4]);
 }
+
+#[test]
+fn a_solid_reads_its_elevation_and_extrusion() {
+    let text = one(
+        "SOLID",
+        &[
+            (10, "0"),
+            (20, "0"),
+            (30, "4"),
+            (11, "1"),
+            (21, "0"),
+            (31, "4"),
+            (12, "0"),
+            (22, "1"),
+            (32, "4"),
+            (210, "0"),
+            (220, "0"),
+            (230, "-1"),
+        ],
+    );
+    let db = read_str(&text).unwrap();
+    let Entity::Solid(s) = &db.entities[0] else {
+        panic!("a SOLID, got {:?}", db.entities[0]);
+    };
+    assert_eq!(s.elevation, 4.0);
+    assert_eq!(
+        (s.extrusion.x, s.extrusion.y, s.extrusion.z),
+        (0.0, 0.0, -1.0)
+    );
+}
