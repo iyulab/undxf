@@ -260,3 +260,42 @@ fn a_path_that_stops_short_of_its_count_keeps_what_was_read_and_says_so() {
     assert_eq!(warnings.len(), 1, "{warnings:?}");
     assert!(warnings[0].starts_with("HATCH_STRUCTURE:"), "{warnings:?}");
 }
+
+#[test]
+fn the_elevation_and_extrusion_come_from_the_header_and_default_when_absent() {
+    use uncad_model::model::Point3D;
+    let groups = [
+        (10, "0"),
+        (20, "0"),
+        (30, "2.5"),
+        (210, "0"),
+        (220, "0"),
+        (230, "-1"),
+        (2, "SOLID"),
+        (70, "1"),
+        (71, "0"),
+        (91, "0"),
+    ];
+    let (h, warnings) = hatch(&groups);
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(h.elevation, 2.5);
+    assert_eq!(
+        h.extrusion,
+        Point3D {
+            x: 0.0,
+            y: 0.0,
+            z: -1.0
+        }
+    );
+    // A writer leaves the default extrusion out.
+    let (h, _) = hatch(&[(2, "SOLID"), (70, "1"), (71, "0"), (91, "0")]);
+    assert_eq!(h.elevation, 0.0);
+    assert_eq!(
+        h.extrusion,
+        Point3D {
+            x: 0.0,
+            y: 0.0,
+            z: 1.0
+        }
+    );
+}

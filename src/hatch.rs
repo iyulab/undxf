@@ -2,7 +2,7 @@
 //!
 //! Unlike the other entities, a HATCH record cannot be read by looking a
 //! group code up: it repeats codes, and only their position tells them
-//! apart -- 10 and 20 are the elevation point, then every boundary vertex and
+//! apart -- 10, 20 and 30 are the elevation point, then every boundary vertex and
 //! edge point, then the seed points; 72 and 73 mean one thing in a polyline
 //! path and another in an edge. So it is read in order, with the counts the
 //! record states (91 paths, 93 vertices or edges, 78 pattern lines, 453
@@ -14,7 +14,7 @@
 
 use crate::pairs::{Pair, ReadError};
 use uncad_model::model::{
-    HatchBoundaryPath, HatchEdge, HatchGradient, HatchPatternLine, Point2D, PolylineVertex,
+    HatchBoundaryPath, HatchEdge, HatchGradient, HatchPatternLine, Point2D, Point3D, PolylineVertex,
 };
 
 /// What a HATCH states besides the fields every entity carries.
@@ -23,6 +23,8 @@ pub(crate) struct Hatch {
     pub solid_fill: bool,
     pub gradient: Option<HatchGradient>,
     pub pattern_lines: Vec<HatchPatternLine>,
+    pub elevation: f64,
+    pub extrusion: Point3D,
 }
 
 /// Reads the HATCH-specific part of `pairs`, in order.
@@ -40,11 +42,23 @@ pub(crate) fn read(pairs: &[Pair<'_>], warnings: &mut Vec<String>) -> Result<Hat
         solid_fill: false,
         gradient: None,
         pattern_lines: Vec::new(),
+        elevation: 0.0,
+        extrusion: Point3D {
+            x: 0.0,
+            y: 0.0,
+            z: 1.0,
+        },
     };
-    // The header: the fill flag, then the path count.
+    // The header: the elevation point (only its z says anything), the
+    // extrusion, the fill flag, then the path count.
+    let mut extrusion: [Option<f64>; 3] = [None; 3];
     let mut path_count = None;
     while let Some(p) = c.next() {
         match p.code {
+            30 => hatch.elevation = number(p)?,
+            210 => extrusion[0] = Some(number(p)?),
+            220 => extrusion[1] = Some(number(p)?),
+            230 => extrusion[2] = Some(number(p)?),
             70 => hatch.solid_fill = integer(p)? != 0,
             91 => {
                 path_count = Some(count(p)?);
@@ -52,6 +66,15 @@ pub(crate) fn read(pairs: &[Pair<'_>], warnings: &mut Vec<String>) -> Result<Hat
             }
             _ => {}
         }
+    }
+    if extrusion[0].is_some() {
+        // Written only when it is not the default; a component the record
+        // leaves out is 0, as for any point.
+        hatch.extrusion = Point3D {
+            x: extrusion[0].unwrap_or(0.0),
+            y: extrusion[1].unwrap_or(0.0),
+            z: extrusion[2].unwrap_or(0.0),
+        };
     }
     let Some(path_count) = path_count else {
         return Ok(hatch);

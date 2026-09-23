@@ -531,6 +531,8 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 solid_fill: hatch.solid_fill,
                 gradient: hatch.gradient,
                 pattern_lines: hatch.pattern_lines,
+                elevation: hatch.elevation,
+                extrusion: hatch.extrusion,
             })
         }
         other => Entity::Unknown {
