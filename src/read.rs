@@ -69,6 +69,7 @@ fn read_text(text: &str, warnings: Vec<String>) -> Result<CadDatabase, ReadError
         layouts: BTreeMap::new(),
         blocks: BTreeMap::new(),
         warnings,
+        version: None,
     };
     reader.file()?;
     Ok(reader.finish())
@@ -98,6 +99,9 @@ struct Reader<'a, 'b> {
     /// What the decoding reported, then what each entity reported, in the
     /// order they were read.
     warnings: Vec<String>,
+    /// `$ACADVER` from the HEADER section (`AC1015` for R2000), when the file
+    /// has one. It says which variables the file's format has at all.
+    version: Option<String>,
 }
 
 impl<'a, 'b> Reader<'a, 'b> {
@@ -160,12 +164,13 @@ impl<'a, 'b> Reader<'a, 'b> {
                         _ => return Err(self.structure("0/SECTION without a 2/name")),
                     };
                     match name {
+                        "HEADER" => self.header()?,
                         "TABLES" => self.tables()?,
                         "BLOCKS" => self.blocks()?,
                         "ENTITIES" => self.entities()?,
                         "OBJECTS" => self.objects()?,
-                        // HEADER, CLASSES, THUMBNAILIMAGE: nothing the model
-                        // carries yet.
+                        // CLASSES, THUMBNAILIMAGE: nothing the model carries
+                        // yet.
                         _ => self.skip_to("ENDSEC")?,
                     }
                 }
@@ -175,6 +180,24 @@ impl<'a, 'b> Reader<'a, 'b> {
                     )))
                 }
                 _ => {} // stray pairs between sections
+            }
+        }
+    }
+
+    /// The HEADER section: only `$ACADVER` is kept.
+    fn header(&mut self) -> Result<(), ReadError> {
+        loop {
+            let Some(p) = self.next() else {
+                return Err(self.structure("the text ends inside HEADER"));
+            };
+            match (p.code, p.value) {
+                (0, "ENDSEC") => return Ok(()),
+                (9, "$ACADVER") => {
+                    if let Some(v) = self.peek().filter(|v| v.code != 9 && v.code != 0) {
+                        self.version = Some(v.value.trim().to_string());
+                    }
+                }
+                _ => {}
             }
         }
     }
@@ -306,9 +329,20 @@ impl<'a, 'b> Reader<'a, 'b> {
     }
 
     /// The DIMSTYLE table. A style variable is written only when it differs
-    /// from what the application starts from, so an absent group stays
-    /// `None` here rather than becoming a number this file never stated.
+    /// from the value the application starts from. Where that value is the
+    /// same whichever template a drawing started from (a tolerance of 0, a
+    /// factor of 1, a switch that is off, the decimal unit format), an
+    /// absent group is that value. Where the templates start differently
+    /// (text height, decimal places, zero suppression), an absent group
+    /// stays `None` rather than becoming a number this file never stated.
+    ///
+    /// Three of the variables (the linear unit format, the fraction format
+    /// and an angle's decimal places) came with R2000; a file of an earlier
+    /// version -- or one whose header does not say -- cannot have written
+    /// them, so there an absent group is `None` too.
     fn dim_style_table(&mut self) -> Result<(), ReadError> {
+        let r2000 = self.version.as_deref().is_some_and(|v| v >= "AC1015");
+        let since_r2000 = |v: Option<i32>, starting: i32| v.or(r2000.then_some(starting));
         loop {
             let Some(p) = self.next() else {
                 return Err(self.structure("the text ends inside the DIMSTYLE table"));
@@ -353,18 +387,18 @@ impl<'a, 'b> Reader<'a, 'b> {
                     };
                     let style = DimStyleRecord {
                         name: name.clone(),
-                        post: text(3),
-                        scale: number(40)?,
-                        length_factor: number(144)?,
-                        tolerances: integer(71)?.map(|v| v != 0),
-                        limits: integer(72)?.map(|v| v != 0),
-                        tolerance_upper: number(47)?,
-                        tolerance_lower: number(48)?,
+                        post: Some(text(3).unwrap_or_default()),
+                        scale: Some(number(40)?.unwrap_or(1.0)),
+                        length_factor: Some(number(144)?.unwrap_or(1.0)),
+                        tolerances: Some(integer(71)?.is_some_and(|v| v != 0)),
+                        limits: Some(integer(72)?.is_some_and(|v| v != 0)),
+                        tolerance_upper: Some(number(47)?.unwrap_or(0.0)),
+                        tolerance_lower: Some(number(48)?.unwrap_or(0.0)),
                         decimal_places: integer(271)?,
                         tolerance_decimal_places: integer(272)?,
                         text_height: number(140)?,
                         arrow_size: number(41)?,
-                        linear_unit_format: integer(277)?.and_then(|v| match v {
+                        linear_unit_format: since_r2000(integer(277)?, 2).and_then(|v| match v {
                             1 => Some(LinearUnitFormat::Scientific),
                             2 => Some(LinearUnitFormat::Decimal),
                             3 => Some(LinearUnitFormat::Engineering),
@@ -374,17 +408,19 @@ impl<'a, 'b> Reader<'a, 'b> {
                             _ => None,
                         }),
                         zero_suppression: integer(78)?,
-                        rounding: number(45)?,
-                        angular_unit_format: integer(275)?.and_then(|v| match v {
-                            0 => Some(AngularUnitFormat::DecimalDegrees),
-                            1 => Some(AngularUnitFormat::DegreesMinutesSeconds),
-                            2 => Some(AngularUnitFormat::Gradians),
-                            3 => Some(AngularUnitFormat::Radians),
-                            4 => Some(AngularUnitFormat::SurveyorsUnits),
-                            _ => None,
-                        }),
-                        angular_decimal_places: integer(179)?,
-                        fraction_format: integer(276)?.and_then(|v| match v {
+                        rounding: Some(number(45)?.unwrap_or(0.0)),
+                        angular_unit_format: Some(integer(275)?.unwrap_or(0)).and_then(
+                            |v| match v {
+                                0 => Some(AngularUnitFormat::DecimalDegrees),
+                                1 => Some(AngularUnitFormat::DegreesMinutesSeconds),
+                                2 => Some(AngularUnitFormat::Gradians),
+                                3 => Some(AngularUnitFormat::Radians),
+                                4 => Some(AngularUnitFormat::SurveyorsUnits),
+                                _ => None,
+                            },
+                        ),
+                        angular_decimal_places: since_r2000(integer(179)?, 0),
+                        fraction_format: since_r2000(integer(276)?, 0).and_then(|v| match v {
                             0 => Some(FractionFormat::Horizontal),
                             1 => Some(FractionFormat::Diagonal),
                             2 => Some(FractionFormat::NotStacked),

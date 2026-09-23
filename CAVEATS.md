@@ -72,10 +72,16 @@ naming a style it does not comes back unresolved, carrying the name.
 ## A dimension style states only what it changes
 
 The DIMSTYLE table is read for the variables the displayed text depends on -- the prefix pattern,
-the scale and length factor, whether tolerances are shown and how, and the decimal places. The
-format writes a style variable only when it differs from the value the application starts from,
-so a variable the table omits comes back as "not stated" rather than as a number. What to use
-instead is a decision about how to present the dimension, which is not this reader's to make.
+the scale and length factor, whether tolerances are shown and how, the unit formats, rounding and
+decimal places -- and the text height and arrow size. The format writes a style variable only when
+it differs from the value the application starts from. Where every template starts from the same
+value (a tolerance of 0, a factor of 1, a switch that is off, an empty pattern, the decimal unit
+formats), a variable the table omits comes back as that value. Where the templates start
+differently -- text height, arrow size, the two decimal places, zero suppression -- it comes back
+as "not stated": what to use instead is a decision about how to present the dimension, which is
+not this reader's to make. The linear unit format, the fraction format and an angle's decimal
+places came with R2000, so a file from before R2000, or one whose header states no version, does
+not state them.
 
 A dimension's group 3 resolves against this table, so a dimension naming a style the file
 declares comes back resolved, and one naming a style it does not comes back unresolved, carrying
