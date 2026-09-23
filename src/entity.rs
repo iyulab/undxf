@@ -106,7 +106,7 @@ fn point2(pairs: &[Pair<'_>], x: i32) -> Result<Point2D, ReadError> {
 
 /// The extrusion direction (DXF 210), written only when it is not the
 /// default Z axis.
-fn extrusion(pairs: &[Pair<'_>]) -> Result<Point3D, ReadError> {
+pub(crate) fn extrusion(pairs: &[Pair<'_>]) -> Result<Point3D, ReadError> {
     Ok(optional_point3(pairs, 210)?.unwrap_or(Point3D {
         x: 0.0,
         y: 0.0,
@@ -282,6 +282,8 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 common,
                 vertices,
                 closed: flags & 1 == 1,
+                elevation: num_or(pairs, 38, 0.0)?,
+                extrusion: extrusion(pairs)?,
             })
         }
         "POINT" => Entity::Point(PointEntity {

@@ -434,6 +434,10 @@ impl<'a, 'b> Reader<'a, 'b> {
         } else {
             Entity::Polyline2D(LwPolylineEntity {
                 common,
+                // The POLYLINE record's own point is a placeholder whose z is
+                // the elevation of every vertex.
+                elevation: entity::num_or(record, 30, 0.0)?,
+                extrusion: entity::extrusion(record)?,
                 vertices: vertices
                     .into_iter()
                     .map(|(p, bulge)| PolylineVertex {
