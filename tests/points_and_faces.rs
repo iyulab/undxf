@@ -102,3 +102,33 @@ fn a_point_without_a_position_is_kept_and_reported() {
         .iter()
         .any(|w| w.contains("POINT carries no position (group 10)")));
 }
+
+#[test]
+fn a_3dface_reads_which_of_its_edges_are_invisible() {
+    let text = one(
+        "3DFACE",
+        &[
+            (10, "0"),
+            (20, "0"),
+            (11, "1"),
+            (21, "0"),
+            (12, "1"),
+            (22, "1"),
+            (13, "0"),
+            (23, "1"),
+            (70, "5"),
+        ],
+    );
+    let db = read_str(&text).unwrap();
+    let Entity::Face3D(f) = &db.entities[0] else {
+        panic!("a 3DFACE, got {:?}", db.entities[0]);
+    };
+    assert_eq!(f.invisible_edges, [true, false, true, false]);
+
+    // Without the group, every edge shows.
+    let db = read_str(&one("3DFACE", &[(10, "0"), (11, "1"), (12, "1")])).unwrap();
+    let Entity::Face3D(f) = &db.entities[0] else {
+        panic!("a 3DFACE");
+    };
+    assert_eq!(f.invisible_edges, [false; 4]);
+}

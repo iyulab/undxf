@@ -322,6 +322,9 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                     Some(_) => point3(pairs, 13)?,
                     None => corner3,
                 },
+                invisible_edges: Face3DEntity::invisible_edges_from_bits(
+                    int(pairs, 70)?.unwrap_or(0) as u32,
+                ),
             })
         }
         "TEXT" => Entity::Text(TextEntity {
