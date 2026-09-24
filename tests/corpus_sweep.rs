@@ -176,7 +176,9 @@ fn corpus_sweep() {
     // Raster images: five in each of the seven versions of one drawing,
     // counted at the top level and in the model space block alike.
     assert_eq!(s.known.get("IMAGE"), Some(&70));
-    for t in ["TOLERANCE", "WIPEOUT", "MLINE", "IMAGE"] {
+    // Tables, as the block references they are.
+    assert_eq!(s.known.get("ACAD_TABLE"), Some(&16));
+    for t in ["TOLERANCE", "WIPEOUT", "MLINE", "IMAGE", "ACAD_TABLE"] {
         assert_eq!(s.unknown.get(t), None, "{t}");
     }
     for t in ["POINT", "SOLID", "TRACE", "3DFACE"] {

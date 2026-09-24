@@ -5,14 +5,14 @@
 use crate::decode::string;
 use crate::pairs::{Pair, ReadError};
 use uncad_model::model::{
-    ArcEntity, AttdefEntity, AttribEntity, AttributeFlags, CircleEntity, Confidence,
-    DimensionEntity, DimensionKind, DimensionPoints, EllipseEntity, Entity, EntityCommon, EntityId,
-    EntityLinetype, Face3DEntity, HatchEntity, HorizontalJustification, ImageEntity, InsertEntity,
-    LeaderAnnotation, LeaderEntity, LeaderPath, LightEntity, LightType, LineEntity,
-    LwPolylineEntity, MLineEntity, MLineVertex, MTextAttachment, MTextEntity, MultiLeaderEntity,
-    OrdinateAxis, Origin, Point2D, Point3D, PointEntity, PolylineVertex, RayEntity, Ref,
-    SolidEntity, SplineEntity, TextEntity, TextOverride, ToleranceEntity, VerticalJustification,
-    ViewportEntity, ViewportView, WipeoutEntity,
+    AcadTableEntity, ArcEntity, AttdefEntity, AttribEntity, AttributeFlags, CircleEntity,
+    Confidence, DimensionEntity, DimensionKind, DimensionPoints, EllipseEntity, Entity,
+    EntityCommon, EntityId, EntityLinetype, Face3DEntity, HatchEntity, HorizontalJustification,
+    ImageEntity, InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LightEntity, LightType,
+    LineEntity, LwPolylineEntity, MLineEntity, MLineVertex, MTextAttachment, MTextEntity,
+    MultiLeaderEntity, OrdinateAxis, Origin, Point2D, Point3D, PointEntity, PolylineVertex,
+    RayEntity, Ref, SolidEntity, SplineEntity, TextEntity, TextOverride, ToleranceEntity,
+    VerticalJustification, ViewportEntity, ViewportView, WipeoutEntity,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -212,6 +212,7 @@ const REQUIRED_GROUPS: &[(&str, i32, &str, &str)] = &[
     ("SPLINE", 71, "degree", "0"),
     ("TOLERANCE", 10, "insertion point", "the origin"),
     ("WIPEOUT", 10, "insertion point", "the origin"),
+    ("ACAD_TABLE", 10, "insertion point", "the origin"),
     ("IMAGE", 10, "insertion point", "the origin"),
     ("IMAGE", 11, "pixel width vector", "the zero vector"),
     ("IMAGE", 12, "pixel height vector", "the zero vector"),
@@ -474,6 +475,35 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 rotation: radians(pairs, 50)?,
                 attribs: Vec::new(),
                 extrusion: extrusion(pairs)?,
+            })
+        }
+        // A table is a block reference (AcDbBlockReference: its block, 2, and
+        // insertion point, 10) with the table's own part after the
+        // AcDbTable marker, which reuses group codes. The text format writes
+        // no scale for a table, so the block-reference part's 41-43 are
+        // read if present and are 1 otherwise; it writes a horizontal
+        // direction (the table part's 11) in place of a rotation, and the
+        // rotation is that direction's angle in the XY plane.
+        "ACAD_TABLE" => {
+            let split = pairs
+                .iter()
+                .position(|p| p.code == 100 && p.value.trim() == "AcDbTable")
+                .unwrap_or(pairs.len());
+            let (reference, table) = pairs.split_at(split);
+            let rotation = match optional_point3(table, 11)? {
+                Some(d) if d.x != 0.0 || d.y != 0.0 => d.y.atan2(d.x),
+                _ => 0.0,
+            };
+            Entity::AcadTable(AcadTableEntity {
+                common,
+                block_name: name_ref(text(reference, 2)),
+                insertion_point: point3(reference, 10)?,
+                scale: Point3D {
+                    x: num_or(reference, 41, 1.0)?,
+                    y: num_or(reference, 42, 1.0)?,
+                    z: num_or(reference, 43, 1.0)?,
+                },
+                rotation,
             })
         }
         "DIMENSION" | "ARC_DIMENSION" => {

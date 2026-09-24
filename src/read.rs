@@ -875,6 +875,7 @@ fn resolve_names(e: &mut Entity, names: &Names<'_>) {
             Some(&mut i.block_name)
         }
         Entity::Dimension(d) => Some(&mut d.block_name),
+        Entity::AcadTable(t) => Some(&mut t.block_name),
         _ => None,
     };
     if let Some(block) = block {
