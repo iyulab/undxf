@@ -176,7 +176,8 @@ fn an_entitys_colour_is_its_own_not_a_subclass_group_with_the_same_code() {
 /// A polyface mesh: positions (70 = 192) and faces (70 = 128) in one VERTEX
 /// chain. Each face's corners become edges in order and back to the first;
 /// a negative index (an invisible edge) is the same corner, a 0 is an unused
-/// one, and an index past the positions draws nothing.
+/// one, and an edge to an index past the positions is counted as one that
+/// could not be drawn.
 #[test]
 fn a_polyface_mesh_reads_as_the_wireframe_of_its_faces() {
     let vertex = |groups: &str| format!("  0\nVERTEX\n  8\n0\n{groups}");
@@ -219,5 +220,6 @@ fn a_polyface_mesh_reads_as_the_wireframe_of_its_faces() {
             ((0.0, 1.0), (0.0, 0.0)),
         ]
     );
-    assert_eq!(mesh.skipped_edges, 0);
+    // The third face's two edges both touch the fifth position.
+    assert_eq!(mesh.skipped_edges, 2);
 }

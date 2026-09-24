@@ -623,11 +623,11 @@ impl<'a, 'b> Reader<'a, 'b> {
                 skipped_edges,
             })
         } else if flags & 64 == 64 {
+            let (wireframe_edges, skipped_edges) = pface_wireframe(&positions, &faces);
             Entity::PolylinePFace(Solid3DEntity {
                 common,
-                wireframe_edges: pface_wireframe(&positions, &faces),
-                // A polyface mesh has no ACIS data to skip edges from.
-                skipped_edges: 0,
+                wireframe_edges,
+                skipped_edges,
             })
         } else if flags & 8 == 8 {
             Entity::Polyline3D(PolylineEntity {
@@ -1066,10 +1066,11 @@ fn layout(record: &[Pair<'_>]) -> Result<Option<LayoutRecord>, ReadError> {
 /// each face's corners in order and back to the first. An index is 1-based,
 /// negative for an edge drawn invisible (the sign says nothing else and is
 /// dropped) and 0 for an unused corner; a face with fewer than two corners
-/// has no edge, and an edge to a position the chain does not hold is left
-/// out.
-fn pface_wireframe(positions: &[Point3D], faces: &[[i64; 4]]) -> Vec<[Point3D; 2]> {
+/// has no edge. An edge to a position the chain does not hold cannot be
+/// drawn: it is counted, not drawn.
+fn pface_wireframe(positions: &[Point3D], faces: &[[i64; 4]]) -> (Vec<[Point3D; 2]>, usize) {
     let mut edges = Vec::new();
+    let mut skipped = 0;
     for face in faces {
         let corners: Vec<usize> = face
             .iter()
@@ -1080,12 +1081,13 @@ fn pface_wireframe(positions: &[Point3D], faces: &[[i64; 4]]) -> Vec<[Point3D; 2
         }
         for w in 0..corners.len() {
             let (a, b) = (corners[w], corners[(w + 1) % corners.len()]);
-            if let (Some(&pa), Some(&pb)) = (positions.get(a), positions.get(b)) {
-                edges.push([pa, pb]);
+            match (positions.get(a), positions.get(b)) {
+                (Some(&pa), Some(&pb)) => edges.push([pa, pb]),
+                _ => skipped += 1,
             }
         }
     }
-    edges
+    (edges, skipped)
 }
 
 /// A polygon mesh's grid lines, in the order the model states for

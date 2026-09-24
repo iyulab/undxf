@@ -8,10 +8,11 @@ use uncad_model::model::{
     ArcEntity, AttdefEntity, AttribEntity, AttributeFlags, CircleEntity, Confidence,
     DimensionEntity, DimensionKind, DimensionPoints, EllipseEntity, Entity, EntityCommon, EntityId,
     EntityLinetype, Face3DEntity, HatchEntity, HorizontalJustification, InsertEntity,
-    LeaderAnnotation, LeaderEntity, LeaderPath, LineEntity, LwPolylineEntity, MLineEntity,
-    MLineVertex, MTextAttachment, MTextEntity, OrdinateAxis, Origin, Point2D, Point3D, PointEntity,
-    PolylineVertex, RayEntity, Ref, SolidEntity, SplineEntity, TextEntity, TextOverride,
-    ToleranceEntity, VerticalJustification, ViewportEntity, ViewportView, WipeoutEntity,
+    LeaderAnnotation, LeaderEntity, LeaderPath, LightEntity, LightType, LineEntity,
+    LwPolylineEntity, MLineEntity, MLineVertex, MTextAttachment, MTextEntity, OrdinateAxis, Origin,
+    Point2D, Point3D, PointEntity, PolylineVertex, RayEntity, Ref, SolidEntity, SplineEntity,
+    TextEntity, TextOverride, ToleranceEntity, VerticalJustification, ViewportEntity, ViewportView,
+    WipeoutEntity,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -633,6 +634,24 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 control_points: repeated_point3(pairs, 10)?,
                 start_tangent: optional_point3(pairs, 12)?,
                 end_tangent: optional_point3(pairs, 13)?,
+            })
+        }
+        // A light: where it is, what it aims at (11 -- a point light states
+        // it too), and which kind it is. Whether it aims follows from the
+        // kind and is left to whoever needs it.
+        "LIGHT" => {
+            let position = point3(pairs, 10)?;
+            Entity::Light(LightEntity {
+                common,
+                position,
+                // The same stand-in the other reader uses when there is none.
+                target: optional_point3(pairs, 11)?.unwrap_or(position),
+                light_type: match int(pairs, 70)? {
+                    Some(1) => Some(LightType::Distant),
+                    Some(2) => Some(LightType::Point),
+                    Some(3) => Some(LightType::Spot),
+                    _ => None,
+                },
             })
         }
         "RAY" => Entity::Ray(RayEntity {
