@@ -202,8 +202,10 @@ fn edge(c: &mut Cursor<'_, '_>) -> Result<Result<Option<HatchEdge>, String>, Rea
             let Some(start) = c.point(10)? else {
                 return missing("start point");
             };
-            c.point(11)?;
-            HatchEdge::Line { start }
+            let Some(end) = c.point(11)? else {
+                return missing("end point");
+            };
+            HatchEdge::Line { start, end }
         }
         2 => {
             let Some(center) = c.point(10)? else {

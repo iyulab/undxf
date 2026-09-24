@@ -137,7 +137,13 @@ fn an_edge_path_reads_each_kind_of_edge_with_its_angles_in_radians() {
         panic!("{:?}", h.boundary_paths);
     };
     assert_eq!(e.len(), 4);
-    assert_eq!(e[0], HatchEdge::Line { start: p(0.0, 0.0) });
+    assert_eq!(
+        e[0],
+        HatchEdge::Line {
+            start: p(0.0, 0.0),
+            end: p(4.0, 0.0)
+        }
+    );
     let HatchEdge::Arc {
         center,
         radius,
