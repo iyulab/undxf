@@ -144,11 +144,15 @@ fn corpus_sweep() {
     assert_eq!(s.known.get("POLYLINE_2D"), Some(&66));
     assert_eq!(s.known.get("POLYLINE_3D"), Some(&27));
     assert_eq!(s.known.get("INSERT"), Some(&566));
-    // Leaders read since this crate learned the entity; the multi-leader is
-    // a different entity and is not one of them.
+    // Leaders read since this crate learned the entity, and multi-leaders
+    // (their leader lines) since it learned that one.
     assert_eq!(s.known.get("LEADER"), Some(&20));
     assert_eq!(s.unknown.get("LEADER"), None);
-    assert_eq!(s.unknown.get("MULTILEADER"), Some(&24));
+    assert_eq!(s.known.get("MULTILEADER"), Some(&24));
+    assert_eq!(s.unknown.get("MULTILEADER"), None);
+    // Lights and polyface meshes.
+    assert_eq!(s.known.get("LIGHT"), Some(&12));
+    assert_eq!(s.known.get("POLYLINE_PFACE"), Some(&18));
     assert_eq!(s.known.get("MTEXT"), Some(&308));
     assert_eq!(s.unknown.get("MTEXT"), None);
     assert_eq!(s.known.get("VIEWPORT"), Some(&64));

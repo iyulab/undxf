@@ -9,10 +9,10 @@ use uncad_model::model::{
     DimensionEntity, DimensionKind, DimensionPoints, EllipseEntity, Entity, EntityCommon, EntityId,
     EntityLinetype, Face3DEntity, HatchEntity, HorizontalJustification, InsertEntity,
     LeaderAnnotation, LeaderEntity, LeaderPath, LightEntity, LightType, LineEntity,
-    LwPolylineEntity, MLineEntity, MLineVertex, MTextAttachment, MTextEntity, OrdinateAxis, Origin,
-    Point2D, Point3D, PointEntity, PolylineVertex, RayEntity, Ref, SolidEntity, SplineEntity,
-    TextEntity, TextOverride, ToleranceEntity, VerticalJustification, ViewportEntity, ViewportView,
-    WipeoutEntity,
+    LwPolylineEntity, MLineEntity, MLineVertex, MTextAttachment, MTextEntity, MultiLeaderEntity,
+    OrdinateAxis, Origin, Point2D, Point3D, PointEntity, PolylineVertex, RayEntity, Ref,
+    SolidEntity, SplineEntity, TextEntity, TextOverride, ToleranceEntity, VerticalJustification,
+    ViewportEntity, ViewportView, WipeoutEntity,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -636,6 +636,12 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 end_tangent: optional_point3(pairs, 13)?,
             })
         }
+        // The leader lines only, each the points of one `LEADER_LINE{}`
+        // block of the record's context data, in file order.
+        "MULTILEADER" => Entity::MultiLeader(MultiLeaderEntity {
+            common,
+            lines: multileader_lines(pairs)?,
+        }),
         // A light: where it is, what it aims at (11 -- a point light states
         // it too), and which kind it is. Whether it aims follows from the
         // kind and is left to whoever needs it.
@@ -935,6 +941,45 @@ fn optional_point2(pairs: &[Pair<'_>], x: i32) -> Result<Option<Point2D>, ReadEr
 /// A point the file carries only for some dimension subtypes. Its absence is
 /// the x group's absence: a subtype that does not use the point writes none
 /// of its three groups.
+/// A MULTILEADER's leader lines: the points (10/20/30) inside each
+/// `LEADER_LINE{` ... `}` block (groups 304 and 305), in file order. A line
+/// with no point is not a line.
+fn multileader_lines(pairs: &[Pair<'_>]) -> Result<Vec<Vec<Point3D>>, ReadError> {
+    let mut lines = Vec::new();
+    let mut current: Option<Vec<Point3D>> = None;
+    let mut i = 0;
+    while i < pairs.len() {
+        let p = &pairs[i];
+        match (p.code, p.value.trim()) {
+            (304, "LEADER_LINE{") => current = Some(Vec::new()),
+            (305, "}") => {
+                if let Some(points) = current.take().filter(|l| !l.is_empty()) {
+                    lines.push(points);
+                }
+            }
+            (10, _) => {
+                if let Some(points) = current.as_mut() {
+                    let at = |code: i32| {
+                        pairs
+                            .get(i + usize::try_from(code / 10 - 1).unwrap_or(0))
+                            .filter(|q| q.code == code)
+                            .map(number)
+                            .transpose()
+                    };
+                    points.push(Point3D {
+                        x: number(p)?,
+                        y: at(20)?.unwrap_or(0.0),
+                        z: at(30)?.unwrap_or(0.0),
+                    });
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    Ok(lines)
+}
+
 fn optional_point3(pairs: &[Pair<'_>], x: i32) -> Result<Option<Point3D>, ReadError> {
     if num(pairs, x)?.is_none() {
         return Ok(None);
