@@ -84,3 +84,38 @@ fn a_variable_that_came_with_r2000_is_not_stated_by_an_earlier_file() {
     let db = read_str(&bare).unwrap();
     assert_eq!(db.tables.dim_styles["PLAIN"].linear_unit_format, None);
 }
+
+#[test]
+fn before_r2000_one_variable_says_both_formats() {
+    // DIMUNIT (270): 6 is architectural without stacked fractions, 4 the
+    // same with them -- how they are stacked it does not say.
+    let with = |value: &str| {
+        DRAWING.replace("AC1015", "AC1014").replace(
+            "  2\nPLAIN\n 70\n0\n",
+            &format!("  2\nPLAIN\n 70\n0\n270\n{value}\n"),
+        )
+    };
+    let s = |text: String| read_str(&text).unwrap().tables.dim_styles["PLAIN"].clone();
+    let six = s(with("6"));
+    assert_eq!(
+        six.linear_unit_format,
+        Some(LinearUnitFormat::Architectural)
+    );
+    assert_eq!(six.fraction_format, Some(FractionFormat::NotStacked));
+    let four = s(with("4"));
+    assert_eq!(
+        four.linear_unit_format,
+        Some(LinearUnitFormat::Architectural)
+    );
+    assert_eq!(four.fraction_format, None);
+    let two = s(with("2"));
+    assert_eq!(two.linear_unit_format, Some(LinearUnitFormat::Decimal));
+    assert_eq!(two.fraction_format, None);
+    // From R2000 on the variable is not read: DIMLUNIT and DIMFRAC say it.
+    let modern = read_str(&DRAWING.replace("  2\nPLAIN\n 70\n0\n", "  2\nPLAIN\n 70\n0\n270\n6\n"))
+        .unwrap()
+        .tables
+        .dim_styles["PLAIN"]
+        .clone();
+    assert_eq!(modern.linear_unit_format, Some(LinearUnitFormat::Decimal));
+}

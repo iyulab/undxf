@@ -386,6 +386,8 @@ impl<'a, 'b> Reader<'a, 'b> {
                             None => Ok(None),
                         }
                     };
+                    // Before R2000 one variable, DIMUNIT (270), said both.
+                    let dimunit = integer(270)?.map_or((None, None), dimunit);
                     let style = DimStyleRecord {
                         name: name.clone(),
                         post: Some(text(3).unwrap_or_default()),
@@ -399,15 +401,19 @@ impl<'a, 'b> Reader<'a, 'b> {
                         tolerance_decimal_places: integer(272)?,
                         text_height: number(140)?,
                         arrow_size: number(41)?,
-                        linear_unit_format: since_r2000(integer(277)?, 2).and_then(|v| match v {
-                            1 => Some(LinearUnitFormat::Scientific),
-                            2 => Some(LinearUnitFormat::Decimal),
-                            3 => Some(LinearUnitFormat::Engineering),
-                            4 => Some(LinearUnitFormat::Architectural),
-                            5 => Some(LinearUnitFormat::Fractional),
-                            6 => Some(LinearUnitFormat::WindowsDesktop),
-                            _ => None,
-                        }),
+                        linear_unit_format: if r2000 {
+                            since_r2000(integer(277)?, 2).and_then(|v| match v {
+                                1 => Some(LinearUnitFormat::Scientific),
+                                2 => Some(LinearUnitFormat::Decimal),
+                                3 => Some(LinearUnitFormat::Engineering),
+                                4 => Some(LinearUnitFormat::Architectural),
+                                5 => Some(LinearUnitFormat::Fractional),
+                                6 => Some(LinearUnitFormat::WindowsDesktop),
+                                _ => None,
+                            })
+                        } else {
+                            dimunit.0
+                        },
                         zero_suppression: integer(78)?,
                         rounding: Some(number(45)?.unwrap_or(0.0)),
                         angular_unit_format: Some(integer(275)?.unwrap_or(0)).and_then(
@@ -421,12 +427,16 @@ impl<'a, 'b> Reader<'a, 'b> {
                             },
                         ),
                         angular_decimal_places: since_r2000(integer(179)?, 0),
-                        fraction_format: since_r2000(integer(276)?, 0).and_then(|v| match v {
-                            0 => Some(FractionFormat::Horizontal),
-                            1 => Some(FractionFormat::Diagonal),
-                            2 => Some(FractionFormat::NotStacked),
-                            _ => None,
-                        }),
+                        fraction_format: if r2000 {
+                            since_r2000(integer(276)?, 0).and_then(|v| match v {
+                                0 => Some(FractionFormat::Horizontal),
+                                1 => Some(FractionFormat::Diagonal),
+                                2 => Some(FractionFormat::NotStacked),
+                                _ => None,
+                            })
+                        } else {
+                            dimunit.1
+                        },
                     };
                     self.dim_styles.insert(name, style);
                 }
@@ -1012,4 +1022,30 @@ fn mesh_wireframe(
         }
     }
     (edges, 0)
+}
+
+/// What a pre-R2000 dimension style's DIMUNIT (DXF 270) says: the linear
+/// unit format, and -- where the value says it -- the fraction format. 4
+/// and 5 are the architectural and fractional formats with stacked
+/// fractions, which the variable does not say how to stack; 6 and 7 are the
+/// same without stacking. R2000 split the variable into DIMLUNIT and
+/// DIMFRAC.
+fn dimunit(value: i32) -> (Option<LinearUnitFormat>, Option<FractionFormat>) {
+    match value {
+        1 => (Some(LinearUnitFormat::Scientific), None),
+        2 => (Some(LinearUnitFormat::Decimal), None),
+        3 => (Some(LinearUnitFormat::Engineering), None),
+        4 => (Some(LinearUnitFormat::Architectural), None),
+        5 => (Some(LinearUnitFormat::Fractional), None),
+        6 => (
+            Some(LinearUnitFormat::Architectural),
+            Some(FractionFormat::NotStacked),
+        ),
+        7 => (
+            Some(LinearUnitFormat::Fractional),
+            Some(FractionFormat::NotStacked),
+        ),
+        8 => (Some(LinearUnitFormat::WindowsDesktop), None),
+        _ => (None, None),
+    }
 }
