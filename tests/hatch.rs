@@ -400,3 +400,76 @@ fn a_fitted_spline_edge_keeps_its_fit_points_and_end_tangents() {
         }
     );
 }
+
+/// Before R2010 a spline edge has no fit data, so the 97 after its weights
+/// is the path's: how many objects the boundary was picked from. Taking it
+/// for a fit-point count would leave the 330s where the next path should
+/// start. A spline edge that states no fit points is told apart the other
+/// way round: its 0 is followed by the path's own 97.
+#[test]
+fn a_97_after_a_spline_edge_is_the_paths_unless_fit_data_follows() {
+    let spline_edge = [
+        (72, "4"),
+        (94, "1"),
+        (73, "0"),
+        (74, "0"),
+        (95, "4"),
+        (96, "2"),
+        (40, "0"),
+        (40, "0"),
+        (40, "1"),
+        (40, "1"),
+        (10, "4"),
+        (20, "0"),
+        (10, "0"),
+        (20, "0"),
+    ];
+    let island = [
+        (92, "2"),
+        (72, "0"),
+        (73, "1"),
+        (93, "3"),
+        (10, "1"),
+        (20, "1"),
+        (10, "2"),
+        (20, "1"),
+        (10, "2"),
+        (20, "2"),
+        (97, "0"),
+    ];
+    let edge = HatchEdge::Spline {
+        degree: 1,
+        rational: false,
+        periodic: false,
+        knots: vec![0.0, 0.0, 1.0, 1.0],
+        control_points: vec![p(4.0, 0.0), p(0.0, 0.0)],
+        weights: Vec::new(),
+        fit_points: Vec::new(),
+        start_tangent: None,
+        end_tangent: None,
+    };
+    for fit in [&[][..], &[(97, "0")][..]] {
+        let mut g: Vec<(i32, &str)> = HEAD.to_vec();
+        g.extend([(70, "1"), (91, "2"), (92, "1"), (93, "2")]);
+        g.extend([(72, "1"), (10, "0"), (20, "0"), (11, "4"), (21, "0")]);
+        g.extend(spline_edge);
+        g.extend(fit);
+        g.extend([(97, "1"), (330, "1F")]);
+        g.extend(island);
+        g.extend([(75, "1"), (76, "1"), (98, "0")]);
+        let (h, warnings) = hatch(&g);
+        assert!(warnings.is_empty(), "{fit:?}: {warnings:?}");
+        let [HatchBoundaryPath::Edges(edges), HatchBoundaryPath::Polyline(vertices)] =
+            h.boundary_paths.as_slice()
+        else {
+            panic!("{fit:?}: {:?}", h.boundary_paths);
+        };
+        assert_eq!(edges[1], edge, "{fit:?}");
+        assert_eq!(vertices.len(), 3, "{fit:?}");
+        assert_eq!(
+            h.style,
+            Some(uncad_model::model::HatchStyle::Outer),
+            "{fit:?}"
+        );
+    }
+}

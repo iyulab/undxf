@@ -281,7 +281,7 @@ fn edge(c: &mut Cursor<'_, '_>) -> Result<Result<Option<HatchEdge>, String>, Rea
             }
             let mut fit_points = Vec::new();
             let (mut start_tangent, mut end_tangent) = (None, None);
-            if let Some(fit) = c.take(97) {
+            if let Some(fit) = c.fit_data_count() {
                 for _ in 0..count(fit)? {
                     if let Some(p) = c.point(11)? {
                         fit_points.push(p);
@@ -417,6 +417,24 @@ impl<'p, 'a> Cursor<'p, 'a> {
         let p = self.pairs.get(self.at).filter(|p| p.code == code)?;
         self.at += 1;
         Some(p)
+    }
+
+    /// A spline edge's fit-data count (97), next, if it is one.
+    ///
+    /// Fit data came with R2010, and the path the edge belongs to closes
+    /// with a 97 of its own: how many objects the boundary was picked from,
+    /// each a 330. So a 97 after a spline edge's weights is the edge's only
+    /// when what follows it is fit data -- a fit point (11), a tangent (12)
+    /// or, when the edge states no fit points, the path's own 97. Anything
+    /// else (a 330, the next path, the fill style) means the file has no fit
+    /// data and the 97 is the path's, as in every file before R2010.
+    fn fit_data_count(&mut self) -> Option<&'p Pair<'a>> {
+        let after = self.pairs.get(self.at + 1).map(|p| p.code);
+        if matches!(after, Some(11 | 12 | 97)) {
+            self.take(97)
+        } else {
+            None
+        }
     }
 
     fn number(&mut self, code: i32) -> Result<Option<f64>, ReadError> {
