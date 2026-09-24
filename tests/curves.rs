@@ -131,6 +131,40 @@ fn a_spline_that_states_no_flags_and_no_weights_is_unstated_and_not_rational() {
     assert!(s.control_points.is_empty() && s.knots.is_empty());
 }
 
+/// A spline by fit points may state the direction at either end (12, 13);
+/// one that does not has no tangent, rather than a zero one.
+#[test]
+fn a_fit_point_spline_keeps_the_end_tangents_it_states() {
+    let fitted = |tangents: &[(i32, &str)]| {
+        let mut groups = vec![
+            (71, "3"),
+            (11, "0"),
+            (21, "0"),
+            (31, "0"),
+            (11, "2"),
+            (21, "1"),
+            (31, "0"),
+        ];
+        groups.extend_from_slice(tangents);
+        let db = read_str(&one("SPLINE", &groups)).unwrap();
+        let Entity::Spline(s) = &db.entities[0] else {
+            panic!("a SPLINE");
+        };
+        (s.start_tangent, s.end_tangent)
+    };
+    let (start, end) = fitted(&[
+        (12, "1"),
+        (22, "0"),
+        (32, "0"),
+        (13, "0"),
+        (23, "1"),
+        (33, "0"),
+    ]);
+    assert_eq!(start.map(|t| (t.x, t.y, t.z)), Some((1.0, 0.0, 0.0)));
+    assert_eq!(end.map(|t| (t.x, t.y, t.z)), Some((0.0, 1.0, 0.0)));
+    assert_eq!(fitted(&[]), (None, None));
+}
+
 #[test]
 fn an_entity_marked_invisible_reads_as_invisible_and_one_not_marked_as_visible() {
     let hidden = one("CIRCLE", &[(60, "1"), (10, "0"), (20, "0"), (40, "1")]);

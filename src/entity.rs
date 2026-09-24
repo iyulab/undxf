@@ -631,6 +631,8 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 weights: repeated_number(pairs, 41)?,
                 fit_points: repeated_point3(pairs, 11)?,
                 control_points: repeated_point3(pairs, 10)?,
+                start_tangent: optional_point3(pairs, 12)?,
+                end_tangent: optional_point3(pairs, 13)?,
             })
         }
         "RAY" => Entity::Ray(RayEntity {
