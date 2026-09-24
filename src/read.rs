@@ -10,8 +10,8 @@ use uncad_model::model::{
     PolylineEntity, PolylineVertex, Ref, Solid3DEntity,
 };
 use uncad_model::tables::{
-    AngularUnitFormat, BlockRecord, DimStyleRecord, FractionFormat, LayerRecord, LayoutRecord,
-    LinearUnitFormat, PlotPaperUnits, PlotRotation, PlotSettings, Tables,
+    AngularUnitFormat, ArcSymbol, BlockRecord, DimStyleRecord, FractionFormat, LayerRecord,
+    LayoutRecord, LinearUnitFormat, PlotPaperUnits, PlotRotation, PlotSettings, Tables,
 };
 use uncad_model::{CadDatabase, ReadDiagnostics};
 
@@ -437,6 +437,7 @@ impl<'a, 'b> Reader<'a, 'b> {
                         } else {
                             dimunit.1
                         },
+                        arc_symbol: since_r2000(integer(90)?, 0).and_then(ArcSymbol::from_code),
                     };
                     self.dim_styles.insert(name, style);
                 }
