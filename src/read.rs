@@ -699,6 +699,9 @@ impl<'a, 'b> Reader<'a, 'b> {
                 resolve_entity_refs(e, &ids);
             }
         }
+        for layout in layouts.values_mut() {
+            resolve_active_viewport(layout, &ids);
+        }
         let mut entities = Vec::new();
         for (name, block) in &blocks {
             if !is_space(name) {
@@ -863,6 +866,25 @@ fn resolve_entity_refs(e: &mut Entity, ids: &BTreeSet<EntityId>) {
     }
 }
 
+/// A layout's last active viewport (331), against the entities read. A
+/// model layout names a VPORT table record there, not an entity: absent.
+fn resolve_active_viewport(layout: &mut LayoutRecord, ids: &BTreeSet<EntityId>) {
+    let model =
+        matches!(&layout.block_name, Ref::Resolved(b) if b.eq_ignore_ascii_case("*Model_Space"));
+    if model {
+        layout.active_viewport = Ref::Absent;
+        return;
+    }
+    if let Ref::Unresolved(handle) = &layout.active_viewport {
+        if let Ok(value) = u64::from_str_radix(handle, 16) {
+            let id = EntityId::new(value);
+            if ids.contains(&id) {
+                layout.active_viewport = Ref::Resolved(id);
+            }
+        }
+    }
+}
+
 /// An entity's layer, against the LAYER table, and a linetype it names,
 /// against the LTYPE table. A lineweight or transparency the entity does not
 /// state is BYLAYER in a drawing whose version has the property (R2000 and
@@ -962,7 +984,30 @@ fn layout(record: &[Pair<'_>]) -> Result<Option<LayoutRecord>, ReadError> {
         }
         _ => Ref::Absent,
     };
+    let flags = value::<i64>(own, 70)?.unwrap_or(0);
+    let point3 = |x: i32| -> Result<Option<Point3D>, ReadError> {
+        if !own.iter().any(|p| p.code == x) {
+            return Ok(None);
+        }
+        Ok(Some(Point3D {
+            x: number(own, x)?,
+            y: number(own, x + 10)?,
+            z: number(own, x + 20)?,
+        }))
+    };
+    // Resolved against the entities once they are all read.
+    let active_viewport = match own.iter().find(|p| p.code == 331).map(|p| p.value.trim()) {
+        Some(handle) if !handle.is_empty() && handle != "0" => {
+            Ref::Unresolved(handle.to_ascii_uppercase())
+        }
+        _ => Ref::Absent,
+    };
     Ok(Some(LayoutRecord {
+        paper_space_linetype_scaling: flags & 1 != 0,
+        limits_check: flags & 2 != 0,
+        extents_min: point3(14)?,
+        extents_max: point3(15)?,
+        active_viewport,
         name: string(name.value),
         tab_order: value::<i32>(own, 71)?.unwrap_or(0),
         block_name,
