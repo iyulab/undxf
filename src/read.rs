@@ -10,8 +10,9 @@ use uncad_model::model::{
     PolylineEntity, PolylineVertex, Ref, Solid3DEntity,
 };
 use uncad_model::tables::{
-    AngularUnitFormat, ArcSymbol, BlockRecord, DimStyleRecord, FractionFormat, LayerRecord,
-    LayoutRecord, LinearUnitFormat, PlotPaperUnits, PlotRotation, PlotSettings, Tables,
+    AngularUnitFormat, ArcSymbol, BlockRecord, DimStyleRecord, FractionFormat, ImageDefinition,
+    LayerRecord, LayoutRecord, LinearUnitFormat, PlotPaperUnits, PlotRotation, PlotSettings,
+    ResolutionUnit, Tables,
 };
 use uncad_model::{CadDatabase, ReadDiagnostics};
 
@@ -68,6 +69,7 @@ fn read_text(text: &str, warnings: Vec<String>) -> Result<CadDatabase, ReadError
         dim_styles: BTreeMap::new(),
         mlinestyles: BTreeMap::new(),
         layouts: BTreeMap::new(),
+        image_definitions: BTreeMap::new(),
         blocks: BTreeMap::new(),
         warnings,
         version: None,
@@ -96,6 +98,8 @@ struct Reader<'a, 'b> {
     mlinestyles: BTreeMap<String, Vec<f64>>,
     /// LAYOUT name -> record, its block still named by handle.
     layouts: BTreeMap<String, LayoutRecord>,
+    /// IMAGEDEF handle (upper-case hex) -> the file it names.
+    image_definitions: BTreeMap<String, ImageDefinition>,
     blocks: BTreeMap<String, BlockRecord>,
     /// What the decoding reported, then what each entity reported, in the
     /// order they were read.
@@ -262,6 +266,12 @@ impl<'a, 'b> Reader<'a, 'b> {
                     let record = self.record();
                     if let Some(layout) = layout(record)? {
                         self.layouts.insert(layout.name.clone(), layout);
+                    }
+                }
+                (0, "IMAGEDEF") => {
+                    let record = self.record();
+                    if let Some((handle, definition)) = image_definition(record)? {
+                        self.image_definitions.insert(handle, definition);
                     }
                 }
                 _ => {}
@@ -674,6 +684,7 @@ impl<'a, 'b> Reader<'a, 'b> {
             dim_styles,
             mlinestyles,
             mut layouts,
+            image_definitions,
             mut blocks,
             warnings,
             version,
@@ -694,6 +705,7 @@ impl<'a, 'b> Reader<'a, 'b> {
             mlinestyles: &mlinestyles,
             text_styles: &text_styles,
             linetypes: &linetypes,
+            image_definitions: &image_definitions,
             since_r2000: version.as_deref().is_some_and(|v| v >= "AC1015"),
             since_r2004: version.as_deref().is_some_and(|v| v >= "AC1018"),
         };
@@ -737,6 +749,7 @@ impl<'a, 'b> Reader<'a, 'b> {
                 block_records: blocks,
                 mlinestyles,
                 layouts,
+                image_definitions,
             },
             read_diagnostics: ReadDiagnostics { warnings },
         }
@@ -759,6 +772,7 @@ struct Names<'n> {
     mlinestyles: &'n BTreeMap<String, Vec<f64>>,
     text_styles: &'n BTreeSet<String>,
     linetypes: &'n BTreeSet<String>,
+    image_definitions: &'n BTreeMap<String, ImageDefinition>,
     since_r2000: bool,
     since_r2004: bool,
 }
@@ -822,6 +836,11 @@ fn resolve_names(e: &mut Entity, names: &Names<'_>) {
         Entity::Attrib(a) => resolve_text_style(&mut a.style_name, names.text_styles),
         Entity::Attdef(a) => resolve_text_style(&mut a.style_name, names.text_styles),
         Entity::MText(m) => resolve_text_style(&mut m.style_name, names.text_styles),
+        // An image names its definition by the object's handle, and the
+        // handle is the key the definition is kept under.
+        Entity::Image(i) => resolve_name(&mut i.definition, |h| {
+            names.image_definitions.contains_key(h)
+        }),
         // A viewport names the layers it freezes by their records' handles.
         Entity::Viewport(v) => {
             for layer in &mut v.frozen_layers {
@@ -966,6 +985,35 @@ fn layer(record: &[Pair<'_>]) -> Result<Option<LayerRecord>, ReadError> {
             _ => Ref::Absent,
         },
     }))
+}
+
+/// An IMAGEDEF object under its handle (upper-case hex), or `None` for one
+/// without a handle, which nothing could point at.
+fn image_definition(record: &[Pair<'_>]) -> Result<Option<(String, ImageDefinition)>, ReadError> {
+    let Some(handle) = record
+        .iter()
+        .find(|p| p.code == 5)
+        .map(|p| p.value.trim())
+        .filter(|h| !h.is_empty())
+    else {
+        return Ok(None);
+    };
+    let point = |x: i32| -> Result<Point2D, ReadError> {
+        Ok(Point2D {
+            x: value::<f64>(record, x)?.unwrap_or(0.0),
+            y: value::<f64>(record, x + 10)?.unwrap_or(0.0),
+        })
+    };
+    Ok(Some((
+        handle.to_ascii_uppercase(),
+        ImageDefinition {
+            file_path: record.iter().find(|p| p.code == 1).map(|p| string(p.value)),
+            size_pixels: point(10)?,
+            pixel_size: point(11)?,
+            loaded: value::<i64>(record, 280)?.map(|v| v != 0),
+            resolution_unit: value::<i32>(record, 281)?.and_then(ResolutionUnit::from_code),
+        },
+    )))
 }
 
 /// A LAYOUT object, or `None` for one without a name. The object has two

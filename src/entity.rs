@@ -7,7 +7,7 @@ use crate::pairs::{Pair, ReadError};
 use uncad_model::model::{
     ArcEntity, AttdefEntity, AttribEntity, AttributeFlags, CircleEntity, Confidence,
     DimensionEntity, DimensionKind, DimensionPoints, EllipseEntity, Entity, EntityCommon, EntityId,
-    EntityLinetype, Face3DEntity, HatchEntity, HorizontalJustification, InsertEntity,
+    EntityLinetype, Face3DEntity, HatchEntity, HorizontalJustification, ImageEntity, InsertEntity,
     LeaderAnnotation, LeaderEntity, LeaderPath, LightEntity, LightType, LineEntity,
     LwPolylineEntity, MLineEntity, MLineVertex, MTextAttachment, MTextEntity, MultiLeaderEntity,
     OrdinateAxis, Origin, Point2D, Point3D, PointEntity, PolylineVertex, RayEntity, Ref,
@@ -212,6 +212,10 @@ const REQUIRED_GROUPS: &[(&str, i32, &str, &str)] = &[
     ("SPLINE", 71, "degree", "0"),
     ("TOLERANCE", 10, "insertion point", "the origin"),
     ("WIPEOUT", 10, "insertion point", "the origin"),
+    ("IMAGE", 10, "insertion point", "the origin"),
+    ("IMAGE", 11, "pixel width vector", "the zero vector"),
+    ("IMAGE", 12, "pixel height vector", "the zero vector"),
+    ("IMAGE", 13, "size in pixels", "0 by 0"),
     ("MTEXT", 10, "insertion point", "the origin"),
     ("MTEXT", 40, "text height", "0"),
     ("DIMENSION", 11, "text position", "the origin"),
@@ -544,6 +548,36 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             common,
             boundary: wipeout_boundary(pairs)?,
         }),
+        // The frame as the file states it, the definition by its handle
+        // (resolved once the OBJECTS section is in), and the clip boundary
+        // through that frame, as a WIPEOUT's is.
+        "IMAGE" => {
+            let insertion_point = point3(pairs, 10)?;
+            let u_vector = point3(pairs, 11)?;
+            let v_vector = point3(pairs, 12)?;
+            let size_pixels = Point2D {
+                x: num_or(pairs, 13, 0.0)?,
+                y: num_or(pairs, 23, 0.0)?,
+            };
+            Entity::Image(ImageEntity {
+                common,
+                insertion_point,
+                u_vector,
+                v_vector,
+                size_pixels,
+                definition: match text(pairs, 340).map(str::trim) {
+                    Some(h) if !h.is_empty() && h != "0" => Ref::Unresolved(h.to_ascii_uppercase()),
+                    _ => Ref::Absent,
+                },
+                display_flags: int(pairs, 70)?.and_then(|v| u16::try_from(v).ok()),
+                clipping: int(pairs, 280)?.map(|v| v != 0),
+                brightness: int(pairs, 281)?.and_then(|v| u8::try_from(v).ok()),
+                contrast: int(pairs, 282)?.and_then(|v| u8::try_from(v).ok()),
+                fade: int(pairs, 283)?.and_then(|v| u8::try_from(v).ok()),
+                clip_outside: int(pairs, 290)?.map(|v| v != 0),
+                boundary: clip_boundary(pairs, insertion_point, u_vector, v_vector, size_pixels)?,
+            })
+        }
         "LEADER" => Entity::Leader(LeaderEntity {
             common,
             vertices: repeated_point3(pairs, 10)?,
@@ -1041,6 +1075,19 @@ fn wipeout_boundary(pairs: &[Pair<'_>]) -> Result<Vec<Point2D>, ReadError> {
         x: num_or(pairs, 13, 1.0)?,
         y: num_or(pairs, 23, 1.0)?,
     };
+    clip_boundary(pairs, origin, u, v, size)
+}
+
+/// The clip boundary (71, 91, 14) of a raster entity -- an IMAGE, or the
+/// WIPEOUT that shares its layout -- put through the entity's frame, as
+/// [`wipeout_boundary`] describes.
+fn clip_boundary(
+    pairs: &[Pair<'_>],
+    origin: Point3D,
+    u: Point3D,
+    v: Point3D,
+    size: Point2D,
+) -> Result<Vec<Point2D>, ReadError> {
     let vertices: Vec<Point2D> = repeated_point3(pairs, 14)?
         .into_iter()
         .map(|p| Point2D { x: p.x, y: p.y })

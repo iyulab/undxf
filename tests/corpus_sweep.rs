@@ -173,7 +173,10 @@ fn corpus_sweep() {
     assert_eq!(s.known.get("TOLERANCE"), Some(&18));
     assert_eq!(s.known.get("WIPEOUT"), Some(&32));
     assert_eq!(s.known.get("MLINE"), Some(&20));
-    for t in ["TOLERANCE", "WIPEOUT", "MLINE"] {
+    // Raster images: five in each of the seven versions of one drawing,
+    // counted at the top level and in the model space block alike.
+    assert_eq!(s.known.get("IMAGE"), Some(&70));
+    for t in ["TOLERANCE", "WIPEOUT", "MLINE", "IMAGE"] {
         assert_eq!(s.unknown.get(t), None, "{t}");
     }
     for t in ["POINT", "SOLID", "TRACE", "3DFACE"] {
