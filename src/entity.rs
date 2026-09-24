@@ -7,9 +7,9 @@ use crate::pairs::{Pair, ReadError};
 use uncad_model::model::{
     ArcEntity, AttdefEntity, AttribEntity, AttributeFlags, CircleEntity, Confidence,
     DimensionEntity, DimensionKind, DimensionPoints, EllipseEntity, Entity, EntityCommon, EntityId,
-    Face3DEntity, HatchEntity, HorizontalJustification, InsertEntity, LeaderAnnotation,
-    LeaderEntity, LeaderPath, LineEntity, LwPolylineEntity, MLineEntity, MLineVertex,
-    MTextAttachment, MTextEntity, OrdinateAxis, Origin, Point2D, Point3D, PointEntity,
+    EntityLinetype, Face3DEntity, HatchEntity, HorizontalJustification, InsertEntity,
+    LeaderAnnotation, LeaderEntity, LeaderPath, LineEntity, LwPolylineEntity, MLineEntity,
+    MLineVertex, MTextAttachment, MTextEntity, OrdinateAxis, Origin, Point2D, Point3D, PointEntity,
     PolylineVertex, RayEntity, Ref, SolidEntity, SplineEntity, TextEntity, TextOverride,
     ToleranceEntity, VerticalJustification, ViewportEntity, ViewportView, WipeoutEntity,
 };
@@ -156,7 +156,25 @@ fn common(pairs: &[Pair<'_>], ordinal: u64) -> Result<EntityCommon, ReadError> {
         true_color,
         // Written only when set: no group 60 is a visible entity.
         invisible: int(pairs, 60)? == Some(1),
+        linetype: linetype(text(pairs, 6)),
+        linetype_scale: num_or(pairs, 48, 1.0)?,
+        // Carried as stated; an absent group becomes BYLAYER once the
+        // drawing's version is known to have the property (`Reader::finish`).
+        lineweight: int(pairs, 370)?.map(|w| w as i16),
+        transparency: int(pairs, 440)?.map(|t| t as u32),
     })
+}
+
+/// An entity's linetype (DXF 6): absent, or the pseudo-names BYLAYER and
+/// BYBLOCK in any case, are not a table entry; any other name is carried
+/// and resolved against the LTYPE table with the rest of the drawing.
+fn linetype(name: Option<&str>) -> EntityLinetype {
+    match name.map(str::trim) {
+        None => EntityLinetype::ByLayer,
+        Some(n) if n.eq_ignore_ascii_case("BYLAYER") => EntityLinetype::ByLayer,
+        Some(n) if n.eq_ignore_ascii_case("BYBLOCK") => EntityLinetype::ByBlock,
+        Some(n) => EntityLinetype::Named(Ref::Unresolved(string(n))),
+    }
 }
 
 /// Groups an entity cannot be understood without: `(type, group, what the

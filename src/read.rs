@@ -6,8 +6,8 @@ use crate::entity::{self, Space};
 use crate::pairs::{pairs, Pair, ReadError};
 use std::collections::{BTreeMap, BTreeSet};
 use uncad_model::model::{
-    Entity, EntityCommon, EntityId, LwPolylineEntity, Point2D, Point3D, PolylineEntity,
-    PolylineVertex, Ref, Solid3DEntity,
+    Entity, EntityCommon, EntityId, EntityLinetype, LwPolylineEntity, Point2D, Point3D,
+    PolylineEntity, PolylineVertex, Ref, Solid3DEntity,
 };
 use uncad_model::tables::{
     AngularUnitFormat, BlockRecord, DimStyleRecord, FractionFormat, LayerRecord, LayoutRecord,
@@ -661,6 +661,7 @@ impl<'a, 'b> Reader<'a, 'b> {
             mut layouts,
             mut blocks,
             warnings,
+            version,
             ..
         } = self;
         let block_names: Vec<String> = blocks.keys().cloned().collect();
@@ -677,6 +678,9 @@ impl<'a, 'b> Reader<'a, 'b> {
             dim_styles: &dim_styles,
             mlinestyles: &mlinestyles,
             text_styles: &text_styles,
+            linetypes: &linetypes,
+            since_r2000: version.as_deref().is_some_and(|v| v >= "AC1015"),
+            since_r2004: version.as_deref().is_some_and(|v| v >= "AC1018"),
         };
         let ids: BTreeSet<EntityId> = blocks
             .values()
@@ -736,6 +740,9 @@ struct Names<'n> {
     dim_styles: &'n BTreeMap<String, DimStyleRecord>,
     mlinestyles: &'n BTreeMap<String, Vec<f64>>,
     text_styles: &'n BTreeSet<String>,
+    linetypes: &'n BTreeSet<String>,
+    since_r2000: bool,
+    since_r2004: bool,
 }
 
 /// A name the file wrote becomes a resolved reference when `declared` says
@@ -788,7 +795,7 @@ fn resolve_block_record(
 /// A name the file wrote becomes a resolved reference when the tables
 /// declare it, and stays unresolved -- carrying the name -- when they do not.
 fn resolve_names(e: &mut Entity, names: &Names<'_>) {
-    resolve_layer(e.common_mut(), names.layers);
+    resolve_common(e.common_mut(), names);
     match e {
         Entity::MLine(m) => resolve_name(&mut m.mlinestyle_name, |n| {
             names.mlinestyles.contains_key(n)
@@ -825,7 +832,7 @@ fn resolve_names(e: &mut Entity, names: &Names<'_>) {
     let block = match e {
         Entity::Insert(i) => {
             for a in &mut i.attribs {
-                resolve_layer(&mut a.common, names.layers);
+                resolve_common(&mut a.common, names);
                 resolve_text_style(&mut a.style_name, names.text_styles);
             }
             Some(&mut i.block_name)
@@ -856,11 +863,25 @@ fn resolve_entity_refs(e: &mut Entity, ids: &BTreeSet<EntityId>) {
     }
 }
 
-fn resolve_layer(common: &mut EntityCommon, layers: &BTreeMap<String, LayerRecord>) {
+/// An entity's layer, against the LAYER table, and a linetype it names,
+/// against the LTYPE table. A lineweight or transparency the entity does not
+/// state is BYLAYER in a drawing whose version has the property (R2000 and
+/// R2004), and stays unstated in an older one -- or one whose header does not
+/// say.
+fn resolve_common(common: &mut EntityCommon, names: &Names<'_>) {
+    if names.since_r2000 {
+        common.lineweight.get_or_insert(-1);
+    }
+    if names.since_r2004 {
+        common.transparency.get_or_insert(0);
+    }
     if let Ref::Unresolved(name) = &mut common.layer {
-        if layers.contains_key(name.as_str()) {
+        if names.layers.contains_key(name.as_str()) {
             common.layer = Ref::Resolved(std::mem::take(name));
         }
+    }
+    if let EntityLinetype::Named(linetype) = &mut common.linetype {
+        resolve_name(linetype, |n| names.linetypes.contains(n));
     }
 }
 
