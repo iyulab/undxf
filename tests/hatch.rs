@@ -172,7 +172,15 @@ fn an_edge_path_reads_each_kind_of_edge_with_its_angles_in_radians() {
     assert_eq!(
         e[3],
         HatchEdge::Spline {
-            control_points: vec![p(0.0, 4.0), p(-1.0, 2.0), p(0.0, 0.0)]
+            degree: 2,
+            rational: true,
+            periodic: false,
+            knots: vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0],
+            control_points: vec![p(0.0, 4.0), p(-1.0, 2.0), p(0.0, 0.0)],
+            weights: vec![1.0, 0.7, 1.0],
+            fit_points: Vec::new(),
+            start_tangent: None,
+            end_tangent: None,
         }
     );
 }
@@ -325,4 +333,70 @@ fn the_fill_style_after_the_paths_is_read_and_an_undefined_one_is_none() {
     assert_eq!(with_style("0"), Some(HatchStyle::Normal));
     assert_eq!(with_style("2"), Some(HatchStyle::Ignore));
     assert_eq!(with_style("5"), None);
+}
+
+#[test]
+fn a_fitted_spline_edge_keeps_its_fit_points_and_end_tangents() {
+    let mut g: Vec<(i32, &str)> = HEAD.to_vec();
+    g.extend([
+        (70, "0"),
+        (91, "1"),
+        (92, "1"),
+        (93, "1"),
+        (72, "4"),
+        (94, "3"),
+        (73, "0"),
+        (74, "1"),
+        (95, "8"),
+        (96, "4"),
+        (40, "0"),
+        (40, "0"),
+        (40, "0"),
+        (40, "0"),
+        (40, "1"),
+        (40, "1"),
+        (40, "1"),
+        (40, "1"),
+        (10, "0"),
+        (20, "0"),
+        (10, "1"),
+        (20, "2"),
+        (10, "3"),
+        (20, "2"),
+        (10, "4"),
+        (20, "0"),
+        (97, "2"),
+        (11, "0"),
+        (21, "0"),
+        (11, "4"),
+        (21, "0"),
+        (12, "1"),
+        (22, "1"),
+        (13, "1"),
+        (23, "-1"),
+        (97, "0"),
+        (75, "0"),
+        (76, "1"),
+        (98, "0"),
+    ]);
+    let (h, warnings) = hatch(&g);
+    assert!(warnings.is_empty(), "{warnings:?}");
+    let [HatchBoundaryPath::Edges(e)] = h.boundary_paths.as_slice() else {
+        panic!("{:?}", h.boundary_paths);
+    };
+    assert_eq!(
+        e[0],
+        HatchEdge::Spline {
+            degree: 3,
+            rational: false,
+            periodic: true,
+            knots: vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 1.0],
+            control_points: vec![p(0.0, 0.0), p(1.0, 2.0), p(3.0, 2.0), p(4.0, 0.0)],
+            // Not rational: no weights, whatever the points would weigh.
+            weights: Vec::new(),
+            fit_points: vec![p(0.0, 0.0), p(4.0, 0.0)],
+            start_tangent: Some(p(1.0, 1.0)),
+            end_tangent: Some(p(1.0, -1.0)),
+        }
+    );
 }

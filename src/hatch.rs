@@ -236,16 +236,26 @@ fn edge(c: &mut Cursor<'_, '_>) -> Result<Result<Option<HatchEdge>, String>, Rea
             }
         }
         4 => {
-            c.take(94);
+            let Some(degree) = c.take(94) else {
+                return missing("degree (94)");
+            };
+            let degree = u32::try_from(count(degree)?).unwrap_or(u32::MAX);
             let rational = c.number(73)?.is_some_and(|v| v != 0.0);
-            c.take(74);
-            let knots = c.take(95).map(count).transpose()?.unwrap_or(0);
+            let periodic = c.number(74)?.is_some_and(|v| v != 0.0);
+            let knot_count = c.take(95).map(count).transpose()?.unwrap_or(0);
             let Some(n) = c.take(96) else {
                 return missing("control point count (96)");
             };
             let n = count(n)?;
-            for _ in 0..knots {
-                c.take(40);
+            let mut knots = Vec::with_capacity(knot_count.min(1 << 16));
+            for _ in 0..knot_count {
+                let Some(k) = c.number(40)? else {
+                    return Ok(Err(format!(
+                        "a spline edge states {knot_count} knots but has {}",
+                        knots.len()
+                    )));
+                };
+                knots.push(k);
             }
             let mut control_points = Vec::with_capacity(n.min(1 << 16));
             for _ in 0..n {
@@ -257,19 +267,40 @@ fn edge(c: &mut Cursor<'_, '_>) -> Result<Result<Option<HatchEdge>, String>, Rea
                 };
                 control_points.push(point);
             }
+            let mut weights = Vec::new();
             if rational {
                 for _ in 0..n {
-                    c.take(42);
+                    let Some(w) = c.number(42)? else {
+                        return Ok(Err(format!(
+                            "a rational spline edge states {n} control points but {} weights",
+                            weights.len()
+                        )));
+                    };
+                    weights.push(w);
                 }
             }
+            let mut fit_points = Vec::new();
+            let (mut start_tangent, mut end_tangent) = (None, None);
             if let Some(fit) = c.take(97) {
                 for _ in 0..count(fit)? {
-                    c.point(11)?;
+                    if let Some(p) = c.point(11)? {
+                        fit_points.push(p);
+                    }
                 }
+                start_tangent = c.point(12)?;
+                end_tangent = c.point(13)?;
             }
-            c.point(12)?;
-            c.point(13)?;
-            HatchEdge::Spline { control_points }
+            HatchEdge::Spline {
+                degree,
+                rational,
+                periodic,
+                knots,
+                control_points,
+                weights,
+                fit_points,
+                start_tangent,
+                end_tangent,
+            }
         }
         _ => return Ok(Ok(None)),
     })))
