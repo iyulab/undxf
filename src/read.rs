@@ -554,11 +554,9 @@ impl<'a, 'b> Reader<'a, 'b> {
     }
 
     /// A POLYLINE and its VERTEX chain. A plain 2D or 3D polyline becomes
-    /// the model's polyline with its vertices, and a polygon mesh (flag 16)
-    /// the wireframe of its grid. A polyface mesh (flag 64) is structure
-    /// this crate does not interpret: it is kept as an `Unknown` POLYLINE
-    /// whose type name says how many vertices it had, so that nothing is
-    /// lost silently and nothing is guessed.
+    /// the model's polyline with its vertices, a polygon mesh (flag 16) the
+    /// wireframe of its grid, and a polyface mesh (flag 64) the wireframe of
+    /// its faces.
     fn polyline(&mut self, record: &[Pair<'a>]) -> Result<(Entity, Space), ReadError> {
         let read = entity::read("POLYLINE", record, self.ordinal)?;
         let flags = record
@@ -577,11 +575,25 @@ impl<'a, 'b> Reader<'a, 'b> {
         // vertex; absent is straight) and its segment's widths (40, 41). A
         // 3D polyline has no bulge.
         let mut vertices: Vec<(Point3D, PolylineVertex)> = Vec::new();
+        // A polyface mesh's chain holds two kinds of VERTEX: positions
+        // (70 has 64 and 128) and faces (128 alone), whose 71 to 74 index
+        // the positions.
+        let mut positions: Vec<Point3D> = Vec::new();
+        let mut faces: Vec<[i64; 4]> = Vec::new();
         while self.at("VERTEX") {
             self.next();
             let vrec = self.record();
             self.ordinal += 1;
             let at = entity::point3_of(vrec)?;
+            let vflags = entity::num_or(vrec, 70, 0.0)? as i64;
+            if vflags & 128 == 128 {
+                if vflags & 64 == 64 {
+                    positions.push(at);
+                } else {
+                    let index = |code: i32| entity::num_or(vrec, code, 0.0).map(|v| v as i64);
+                    faces.push([index(71)?, index(72)?, index(73)?, index(74)?]);
+                }
+            }
             vertices.push((
                 at,
                 PolylineVertex {
@@ -611,10 +623,12 @@ impl<'a, 'b> Reader<'a, 'b> {
                 skipped_edges,
             })
         } else if flags & 64 == 64 {
-            Entity::Unknown {
+            Entity::PolylinePFace(Solid3DEntity {
                 common,
-                type_name: format!("POLYLINE(mesh, {} vertices)", vertices.len()),
-            }
+                wireframe_edges: pface_wireframe(&positions, &faces),
+                // A polyface mesh has no ACIS data to skip edges from.
+                skipped_edges: 0,
+            })
         } else if flags & 8 == 8 {
             Entity::Polyline3D(PolylineEntity {
                 common,
@@ -1046,6 +1060,32 @@ fn layout(record: &[Pair<'_>]) -> Result<Option<LayoutRecord>, ReadError> {
             scale_denominator: number(plot, 143)?,
         },
     }))
+}
+
+/// A polyface mesh's faces as wireframe edges, face by face in file order:
+/// each face's corners in order and back to the first. An index is 1-based,
+/// negative for an edge drawn invisible (the sign says nothing else and is
+/// dropped) and 0 for an unused corner; a face with fewer than two corners
+/// has no edge, and an edge to a position the chain does not hold is left
+/// out.
+fn pface_wireframe(positions: &[Point3D], faces: &[[i64; 4]]) -> Vec<[Point3D; 2]> {
+    let mut edges = Vec::new();
+    for face in faces {
+        let corners: Vec<usize> = face
+            .iter()
+            .filter_map(|&i| usize::try_from(i.unsigned_abs()).ok()?.checked_sub(1))
+            .collect();
+        if corners.len() < 2 {
+            continue;
+        }
+        for w in 0..corners.len() {
+            let (a, b) = (corners[w], corners[(w + 1) % corners.len()]);
+            if let (Some(&pa), Some(&pb)) = (positions.get(a), positions.get(b)) {
+                edges.push([pa, pb]);
+            }
+        }
+    }
+    edges
 }
 
 /// A polygon mesh's grid lines, in the order the model states for

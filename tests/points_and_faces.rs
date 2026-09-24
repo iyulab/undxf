@@ -172,3 +172,52 @@ fn an_entitys_colour_is_its_own_not_a_subclass_group_with_the_same_code() {
     let db = undxf::read_str(text).unwrap();
     assert_eq!(db.entities[0].common().color_index, 256);
 }
+
+/// A polyface mesh: positions (70 = 192) and faces (70 = 128) in one VERTEX
+/// chain. Each face's corners become edges in order and back to the first;
+/// a negative index (an invisible edge) is the same corner, a 0 is an unused
+/// one, and an index past the positions draws nothing.
+#[test]
+fn a_polyface_mesh_reads_as_the_wireframe_of_its_faces() {
+    let vertex = |groups: &str| format!("  0\nVERTEX\n  8\n0\n{groups}");
+    let position = |x: u8, y: u8| vertex(&format!(" 10\n{x}\n 20\n{y}\n 30\n0\n 70\n192\n"));
+    let face = |a: i32, b: i32, c: i32, d: i32| {
+        vertex(&format!(
+            " 10\n0\n 20\n0\n 30\n0\n 70\n128\n 71\n{a}\n 72\n{b}\n 73\n{c}\n 74\n{d}\n"
+        ))
+    };
+    let text = [
+        "  0\nSECTION\n  2\nENTITIES\n  0\nPOLYLINE\n  5\n2A\n  8\n0\n 66\n1\n 70\n64\n 71\n4\n 72\n2\n"
+            .to_string(),
+        position(0, 0),
+        position(1, 0),
+        position(1, 1),
+        position(0, 1),
+        // A quad whose last edge is invisible, then a triangle with an
+        // unused fourth corner, then a face naming a fifth position.
+        face(1, 2, 3, -4),
+        face(1, 3, 4, 0),
+        face(1, 5, 0, 0),
+        "  0\nSEQEND\n  8\n0\n  0\nENDSEC\n  0\nEOF\n".to_string(),
+    ]
+    .concat();
+    let db = read_str(&text).unwrap();
+    let Entity::PolylinePFace(mesh) = &db.entities[0] else {
+        panic!("a polyface mesh, got {:?}", db.entities[0]);
+    };
+    let xy = |e: &[uncad_model::model::Point3D; 2]| ((e[0].x, e[0].y), (e[1].x, e[1].y));
+    let edges: Vec<_> = mesh.wireframe_edges.iter().map(xy).collect();
+    assert_eq!(
+        edges,
+        [
+            ((0.0, 0.0), (1.0, 0.0)),
+            ((1.0, 0.0), (1.0, 1.0)),
+            ((1.0, 1.0), (0.0, 1.0)),
+            ((0.0, 1.0), (0.0, 0.0)),
+            ((0.0, 0.0), (1.0, 1.0)),
+            ((1.0, 1.0), (0.0, 1.0)),
+            ((0.0, 1.0), (0.0, 0.0)),
+        ]
+    );
+    assert_eq!(mesh.skipped_edges, 0);
+}
