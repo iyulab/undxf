@@ -381,7 +381,7 @@ fn gradient(pairs: &[Pair<'_>]) -> Result<Option<HatchGradient>, ReadError> {
         };
         (c, None, tint)
     } else if stops.len() >= 2 {
-        stops.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+        stops.sort_by(|a, b| a.0.total_cmp(&b.0));
         (stops[0].1, Some(stops[stops.len() - 1].1), 0.0)
     } else {
         let Some(&(_, c)) = stops.first() else {
