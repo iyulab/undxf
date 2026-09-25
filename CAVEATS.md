@@ -2,7 +2,7 @@
 
 > Measured, not asserted. Every number here comes from a test that pins it (`tests/corpus_sweep.rs`, run in a tree that carries the LibreDWG test corpus beside this crate); when the reader or the corpus changes, the test fails and the number is re-measured.
 
-## What the corpus sweep says (LibreDWG `test/test-data`, 67 DXF files, 2026-09-22)
+## What the corpus sweep says (LibreDWG `test/test-data`, 67 DXF files)
 
 | | Count |
 |---|---|
@@ -11,8 +11,8 @@
 | Files whose bytes are not UTF-8 | 4 (`2000/TS1`, `example_2000`, `example_r13`, `example_r14`) -- all declare `ANSI_1252` and decode through it with no diagnostic |
 | Reads with a diagnostic | 0 |
 | Top-level entities | 1,225 |
-| Entity types interpreted | LINE 49,345 · LWPOLYLINE 827 · ARC 812 · POINT 789 · INSERT 566 · DIMENSION 294 (ARC_DIMENSION included) · MTEXT 308 · SOLID 266 · ELLIPSE 201 · CIRCLE 185 · 3DFACE 182 · TEXT 116 · ATTDEF 77 · POLYLINE (2D) 66 · SPLINE 48 · ATTRIB 31 · POLYLINE (3D) 27 · LEADER 20 · TRACE 20 · HATCH 28 · VIEWPORT 64 · RAY 22 · XLINE 18 · WIPEOUT 32 · MLINE 20 · TOLERANCE 18 -- over top-level and block entities |
-| Kept as `UNKNOWN` | IMAGE 70 · ACAD_PROXY_ENTITY 54 · REGION 36 · MULTILEADER 24 · 3DSOLID 20 · ACAD_TABLE 16 · SHAPE 16 · LIGHT 12 · and smaller counts of surfaces, meshes, underlays and pre-R10 REPEAT/ENDREP |
+| Entity types interpreted | LINE 49,345 · LWPOLYLINE 827 · ARC 812 · POINT 789 · INSERT 566 · MTEXT 308 · DIMENSION 294 (ARC_DIMENSION included) · SOLID 266 · ELLIPSE 201 · CIRCLE 185 · 3DFACE 182 · TEXT 116 · ATTDEF 77 · IMAGE 70 · POLYLINE (2D) 66 · VIEWPORT 64 · SPLINE 48 · WIPEOUT 32 · ATTRIB 31 · HATCH 28 · POLYLINE (3D) 27 · MULTILEADER 24 · RAY 22 · LEADER 20 · TRACE 20 · MLINE 20 · POLYLINE (polyface mesh) 18 · XLINE 18 · TOLERANCE 18 · ACAD_TABLE 16 · LIGHT 12 · POLYLINE (polygon mesh) 4 -- over top-level and block entities |
+| Kept as `UNKNOWN` | ACAD_PROXY_ENTITY 54 · REGION 36 · 3DSOLID 20 · SHAPE 16 · 3DLINE 6 · PDFUNDERLAY 6 · MESH 4 · OLE2FRAME 4 · and 2 each of five surface types, HELIX, SECTIONOBJECT and pre-R10 REPEAT/ENDREP |
 
 An `UNKNOWN` entity keeps its reference ID, layer, colour and type name; a consumer sees that it is there and what it is called.
 
@@ -40,7 +40,7 @@ R14 predates LIGHT and MULTILEADER, so what the DWG twin decodes under those nam
 - **Code pages** are decoded for the `ANSI_` names the DXF reference lists (932, 936, 949, 950, 874, 1250-1258). A name outside that list is reported as `CODEPAGE_UNSUPPORTED` and the text read as UTF-8; a byte the code page has no character for reads as U+FFFD and is reported as `TEXT_ENCODING`. Bytes that are valid UTF-8 are taken as UTF-8 whatever the header says.
 - **Binary DXF** is refused with an error naming line 1.
 - **Pre-R10 drawings** (`r1.4`) that are not in group-code form are refused, at line 1.
-- **Polyface and polygon meshes** (POLYLINE with flags 16 or 64) are kept as `UNKNOWN`, with their vertex count in the type name; their vertices are not folded into an entity the model does not have.
+- **REGION and 3DSOLID** are kept as `UNKNOWN`: their shape is an ACIS body inside the record, which this crate does not parse.
 - **Extrusion** (DXF 210) is carried on CIRCLE, ARC, ELLIPSE, LWPOLYLINE, 2D POLYLINE, SOLID and TRACE, as the file writes it; an absent group is the world Z axis. The elevation of an LWPOLYLINE (38), of a 2D POLYLINE (its record's 30) and of a SOLID or TRACE (its first corner's 30) is carried too. A CIRCLE's and an ARC's center and a polyline's vertices stay in their own coordinate system, as the file writes them -- taking them to the world is a consumer's arithmetic.
 - **A 3DFACE's invisible edges** (DXF 70, bits 1-8) are carried; an absent group is every edge visible. A missing fourth corner (13) is the third, as the reference defines it.
 - **A TEXT's, ATTRIB's and ATTDEF's alignment** (72, and 73 for a TEXT or 74 for an attribute, whose 73 is its field length), its alignment point (11) and its width factor (41) are carried; absent alignment groups are left and baseline, and an absent 41 is 1. The alignment point is kept only for a text aligned otherwise than left and baseline, the only case in which the format writes it. An alignment value outside the format's range is reported as `TEXT_ALIGNMENT` and read as the default.
