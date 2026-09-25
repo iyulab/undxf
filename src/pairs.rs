@@ -16,6 +16,7 @@ pub struct Pair<'a> {
 /// Why a file could not be read. Every variant names the line.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "reason", rename_all = "SCREAMING_SNAKE_CASE")]
+#[non_exhaustive]
 pub enum ReadError {
     /// A group code line that is not an integer.
     BadGroupCode { line: usize, text: String },

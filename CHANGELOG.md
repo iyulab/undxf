@@ -18,3 +18,5 @@ bumps the minor version.
 - An entity type it does not interpret is kept as `UNKNOWN` under the name the file gave it,
   and a name the file does not declare as an unresolved reference: nothing is dropped.
   Binary DXF is not read.
+- A file that cannot be read returns a `ReadError` naming the line. It is `#[non_exhaustive]`,
+  so a later version can add a reason without breaking callers.
