@@ -470,6 +470,9 @@ impl<'a, 'b> Reader<'a, 'b> {
                         .find(|p| p.code == 2)
                         .map(|p| string(p.value))
                         .unwrap_or_default();
+                    // The base point (10/20/30): the point of the definition
+                    // a block reference puts on its insertion point.
+                    let base_point = entity::point3_of(header)?;
                     let mut entities = Vec::new();
                     loop {
                         if self.at("ENDBLK") {
@@ -488,7 +491,9 @@ impl<'a, 'b> Reader<'a, 'b> {
                             None => return Err(self.structure("the text ends inside a BLOCK")),
                         }
                     }
-                    self.block(&name).entities.extend(entities);
+                    let block = self.block(&name);
+                    block.entities.extend(entities);
+                    block.base_point = base_point;
                 }
                 _ => {}
             }
@@ -668,6 +673,7 @@ impl<'a, 'b> Reader<'a, 'b> {
             .or_insert_with(|| BlockRecord {
                 name: name.to_string(),
                 entities: Vec::new(),
+                base_point: Default::default(),
             })
     }
 
