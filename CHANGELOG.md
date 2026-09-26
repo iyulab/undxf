@@ -9,6 +9,8 @@ bumps the minor version.
 
 ### Added
 
+- Reads a dimension's or leader's own style variables (the `ACAD` application's `DSTYLE` list in
+  its extended data) into `style_overrides`; an entity without one reads as an empty list.
 - Initial release. `read_bytes` (and `read_str` for text already in Unicode) reads an ASCII
   DXF file of any version into the [uncad-model](https://github.com/iyulab/uncad-model)
   entity model, with no native code behind it.

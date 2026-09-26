@@ -10,9 +10,10 @@ use uncad_model::model::{
     EntityCommon, EntityId, EntityLinetype, Face3DEntity, HatchEntity, HorizontalJustification,
     ImageEntity, InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LightEntity, LightType,
     LineEntity, LwPolylineEntity, MLineEntity, MLineVertex, MTextAttachment, MTextEntity,
-    MultiLeaderEntity, OrdinateAxis, Origin, Point2D, Point3D, PointEntity, PolylineVertex,
-    RayEntity, Ref, SolidEntity, SplineEntity, TextEntity, TextOverride, ToleranceEntity,
-    VerticalJustification, ViewportEntity, ViewportView, WipeoutEntity,
+    MultiLeaderEntity, OrdinateAxis, Origin, OverrideValue, Point2D, Point3D, PointEntity,
+    PolylineVertex, RayEntity, Ref, SolidEntity, SplineEntity, StyleOverride, TextEntity,
+    TextOverride, ToleranceEntity, VerticalJustification, ViewportEntity, ViewportView,
+    WipeoutEntity,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -86,6 +87,66 @@ fn int(pairs: &[Pair<'_>], code: i32) -> Result<Option<i64>, ReadError> {
 
 fn text<'a>(pairs: &[Pair<'a>], code: i32) -> Option<&'a str> {
     pairs.iter().find(|p| p.code == code).map(|p| p.value)
+}
+
+/// The dimension-style variables an entity sets for itself: the `DSTYLE`
+/// list in its extended data under the `ACAD` application -- `1000 DSTYLE`,
+/// `1002 {`, then (1070 variable, value) pairs, `1002 }`. The value's group
+/// says its kind: 1040 a real, 1070 or 1071 an integer, 1000 a string, 1005
+/// a handle. Empty when the entity carries no such list; a list cut short
+/// by the end of the entity keeps the pairs it has.
+fn style_overrides(pairs: &[Pair<'_>]) -> Result<Vec<StyleOverride>, ReadError> {
+    let mut overrides = Vec::new();
+    let mut app = "";
+    let mut i = 0;
+    while i < pairs.len() {
+        let p = &pairs[i];
+        match p.code {
+            1001 => app = p.value.trim(),
+            1000 if app == "ACAD" && p.value.trim() == "DSTYLE" => {
+                i += 1;
+                // The opening brace, then pairs up to the closing one.
+                if pairs
+                    .get(i)
+                    .is_some_and(|b| b.code == 1002 && b.value.trim() == "{")
+                {
+                    i += 1;
+                }
+                while let [variable, value, ..] = &pairs[i..] {
+                    if variable.code != 1070 {
+                        break;
+                    }
+                    let value = match value.code {
+                        1040 => OverrideValue::Real(number(value)?),
+                        1070 | 1071 => {
+                            OverrideValue::Integer(integer(value)?.try_into().map_err(|_| {
+                                ReadError::BadNumber {
+                                    line: value.line,
+                                    code: value.code,
+                                    text: value.value.to_string(),
+                                }
+                            })?)
+                        }
+                        1000 => OverrideValue::Text(value.value.to_string()),
+                        1005 => OverrideValue::Handle(value.value.trim().to_string()),
+                        _ => break,
+                    };
+                    let variable =
+                        u16::try_from(integer(variable)?).map_err(|_| ReadError::BadNumber {
+                            line: variable.line,
+                            code: variable.code,
+                            text: variable.value.to_string(),
+                        })?;
+                    overrides.push(StyleOverride { variable, value });
+                    i += 2;
+                }
+                continue;
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    Ok(overrides)
 }
 
 /// The 10/20/30 point of a record (a VERTEX's position), for the reader.
@@ -535,6 +596,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                         OrdinateAxis::Y
                     }
                 }),
+                style_overrides: Some(style_overrides(pairs)?),
             })
         }
         // A feature control frame: its text is the frame's contents, symbol
@@ -635,6 +697,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             },
             annotation_id: handle_ref(pairs, 340),
             style_name: name_ref(text(pairs, 3)),
+            style_overrides: Some(style_overrides(pairs)?),
         }),
         "ELLIPSE" => Entity::Ellipse(EllipseEntity {
             common,
