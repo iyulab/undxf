@@ -412,38 +412,17 @@ impl<'a, 'b> Reader<'a, 'b> {
                         text_height: number(140)?,
                         arrow_size: number(41)?,
                         linear_unit_format: if r2000 {
-                            since_r2000(integer(277)?, 2).and_then(|v| match v {
-                                1 => Some(LinearUnitFormat::Scientific),
-                                2 => Some(LinearUnitFormat::Decimal),
-                                3 => Some(LinearUnitFormat::Engineering),
-                                4 => Some(LinearUnitFormat::Architectural),
-                                5 => Some(LinearUnitFormat::Fractional),
-                                6 => Some(LinearUnitFormat::WindowsDesktop),
-                                _ => None,
-                            })
+                            since_r2000(integer(277)?, 2).and_then(LinearUnitFormat::from_code)
                         } else {
                             dimunit.0
                         },
                         zero_suppression: integer(78)?,
                         rounding: Some(number(45)?.unwrap_or(0.0)),
-                        angular_unit_format: Some(integer(275)?.unwrap_or(0)).and_then(
-                            |v| match v {
-                                0 => Some(AngularUnitFormat::DecimalDegrees),
-                                1 => Some(AngularUnitFormat::DegreesMinutesSeconds),
-                                2 => Some(AngularUnitFormat::Gradians),
-                                3 => Some(AngularUnitFormat::Radians),
-                                4 => Some(AngularUnitFormat::SurveyorsUnits),
-                                _ => None,
-                            },
-                        ),
+                        angular_unit_format: Some(integer(275)?.unwrap_or(0))
+                            .and_then(AngularUnitFormat::from_code),
                         angular_decimal_places: since_r2000(integer(179)?, 0),
                         fraction_format: if r2000 {
-                            since_r2000(integer(276)?, 0).and_then(|v| match v {
-                                0 => Some(FractionFormat::Horizontal),
-                                1 => Some(FractionFormat::Diagonal),
-                                2 => Some(FractionFormat::NotStacked),
-                                _ => None,
-                            })
+                            since_r2000(integer(276)?, 0).and_then(FractionFormat::from_code)
                         } else {
                             dimunit.1
                         },
