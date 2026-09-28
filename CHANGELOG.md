@@ -9,6 +9,10 @@ bumps the minor version.
 
 ### Added
 
+- Code page names besides the `ANSI_` forms are read (`GB2312`, `BIG5`, `CP932`, `CP949`,
+  `CP866`, `MACINTOSH`, the `ISO-8859-` family, `US_ASCII`, `UTF8`). A byte a single-byte code
+  page has no character for reads as U+FFFD and is reported (`TEXT_ENCODING`); a file from before
+  R2007 that names no code page is read as ANSI_1252 and says so (`CODEPAGE_ASSUMED`).
 - `read_bytes` reads binary DXF (one-byte codes up to R12, two-byte codes after) as the ASCII
   text it stands for. A group that runs past the end of the file is `ReadError::Binary`, with
   its byte offset.
