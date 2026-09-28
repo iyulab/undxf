@@ -15,7 +15,10 @@
 //! [`read_bytes`] is the whole of it: it decodes the file's strings through
 //! the code page its header declares (a pre-R2007 file) or as UTF-8, and
 //! says in the drawing's diagnostics when bytes could not be decoded.
-//! [`read_str`] takes text that is already Unicode.
+//! [`read_str`] takes text that is already Unicode. [`read_bytes_with_header`]
+//! and [`read_str_with_header`] also return the file's HEADER section as a
+//! [`Header`] -- every variable it states, with the groups written for it --
+//! read in the same pass.
 
 #![forbid(unsafe_code)]
 
@@ -23,10 +26,12 @@ mod acis;
 mod decode;
 mod entity;
 mod hatch;
+mod header;
 mod pairs;
 mod read;
 
+pub use header::{Header, HeaderGroup};
 pub use pairs::ReadError;
-pub use read::{read_bytes, read_str};
+pub use read::{read_bytes, read_bytes_with_header, read_str, read_str_with_header};
 
 pub use uncad_model::CadDatabase;

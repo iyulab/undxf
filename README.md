@@ -7,6 +7,7 @@ Built as a tool to be handed to an agent, like the other parts of the family. It
 ## What it does
 
 - **Read** an ASCII DXF file (any version that is ASCII) into the model: layers, block definitions, and the entities of model and paper space, with each entity's reference ID taken from its handle so that another reader of the same file names the same entity the same way. A pre-2007 file's strings are decoded through the code page its header declares; what could not be decoded is reported in the drawing's diagnostics.
+- **Read the header** beside the drawing, in the same pass: `read_bytes_with_header` returns every variable the HEADER section states, under its name without the `$`, with the groups the file wrote for it and accessors that read it as an integer, a real, a string or a point. A variable the file does not state is absent, so "stated" and "the format's default" stay apart.
 - **Keep what it does not interpret.** An entity type this crate has no interpretation for is kept as an `UNKNOWN` entity under the name the file gave it. A layer or block name the file does not declare is kept as an unresolved reference carrying that name. Nothing is silently dropped.
 
 ## What it is not

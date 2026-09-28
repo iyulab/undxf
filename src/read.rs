@@ -3,6 +3,7 @@
 
 use crate::decode::string;
 use crate::entity::{self, Space};
+use crate::header::{Header, HeaderGroup};
 use crate::pairs::{pairs, Pair, ReadError};
 use std::collections::{BTreeMap, BTreeSet};
 use uncad_model::model::{
@@ -30,6 +31,12 @@ const PAPER_SPACE: &str = "*Paper_Space";
 /// SEQEND is structure, not an entity, and is not kept. An entity type this
 /// crate does not interpret is kept as `Unknown` under its own name.
 pub fn read_str(text: &str) -> Result<CadDatabase, ReadError> {
+    read_text(text, Vec::new()).map(|(db, _)| db)
+}
+
+/// [`read_str`], with the variables the file's HEADER section states beside
+/// the drawing -- read in the same pass.
+pub fn read_str_with_header(text: &str) -> Result<(CadDatabase, Header), ReadError> {
     read_text(text, Vec::new())
 }
 
@@ -38,6 +45,13 @@ pub fn read_str(text: &str) -> Result<CadDatabase, ReadError> {
 /// and its bytes are not UTF-8, as UTF-8 otherwise. What could not be
 /// decoded is reported in `read_diagnostics`, never dropped in silence.
 pub fn read_bytes(bytes: &[u8]) -> Result<CadDatabase, ReadError> {
+    read_bytes_with_header(bytes).map(|(db, _)| db)
+}
+
+/// [`read_bytes`], with the variables the file's HEADER section states
+/// beside the drawing -- read in the same pass, their strings decoded the
+/// same way.
+pub fn read_bytes_with_header(bytes: &[u8]) -> Result<(CadDatabase, Header), ReadError> {
     if bytes.starts_with(b"AutoCAD Binary DXF") {
         return Err(binary());
     }
@@ -52,7 +66,7 @@ fn binary() -> ReadError {
     }
 }
 
-fn read_text(text: &str, warnings: Vec<String>) -> Result<CadDatabase, ReadError> {
+fn read_text(text: &str, warnings: Vec<String>) -> Result<(CadDatabase, Header), ReadError> {
     if text.starts_with("AutoCAD Binary DXF") {
         return Err(binary());
     }
@@ -73,9 +87,11 @@ fn read_text(text: &str, warnings: Vec<String>) -> Result<CadDatabase, ReadError
         blocks: BTreeMap::new(),
         warnings,
         version: None,
+        header: Header::default(),
     };
     reader.file()?;
-    Ok(reader.finish())
+    let header = std::mem::take(&mut reader.header);
+    Ok((reader.finish(), header))
 }
 
 struct Reader<'a, 'b> {
@@ -107,6 +123,8 @@ struct Reader<'a, 'b> {
     /// `$ACADVER` from the HEADER section (`AC1015` for R2000), when the file
     /// has one. It says which variables the file's format has at all.
     version: Option<String>,
+    /// Every variable the HEADER section states.
+    header: Header,
 }
 
 impl<'a, 'b> Reader<'a, 'b> {
@@ -189,20 +207,39 @@ impl<'a, 'b> Reader<'a, 'b> {
         }
     }
 
-    /// The HEADER section: only `$ACADVER` is kept.
+    /// The HEADER section: every variable with the groups that follow its
+    /// group 9. A variable written twice keeps its second writing, and the
+    /// repetition is reported.
     fn header(&mut self) -> Result<(), ReadError> {
+        let mut current: Option<String> = None;
         loop {
             let Some(p) = self.next() else {
                 return Err(self.structure("the text ends inside HEADER"));
             };
             match (p.code, p.value) {
                 (0, "ENDSEC") => return Ok(()),
-                (9, "$ACADVER") => {
-                    if let Some(v) = self.peek().filter(|v| v.code != 9 && v.code != 0) {
-                        self.version = Some(v.value.trim().to_string());
+                (9, name) => {
+                    let name = name.trim();
+                    let name = name.strip_prefix('$').unwrap_or(name).to_string();
+                    if self.header.variables.contains_key(&name) {
+                        self.warnings.push(format!(
+                            "HEADER_VARIABLE_REPEATED: ${name} is written more than once (line {}); its last writing is kept",
+                            p.line
+                        ));
+                    }
+                    self.header.variables.insert(name.clone(), Vec::new());
+                    current = Some(name);
+                }
+                (code, value) => {
+                    if let Some(name) = &current {
+                        if name == "ACADVER" && self.version.is_none() {
+                            self.version = Some(value.trim().to_string());
+                        }
+                        if let Some(groups) = self.header.variables.get_mut(name) {
+                            groups.push(HeaderGroup::new(code, value));
+                        }
                     }
                 }
-                _ => {}
             }
         }
     }

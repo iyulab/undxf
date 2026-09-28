@@ -9,6 +9,10 @@ bumps the minor version.
 
 ### Added
 
+- `read_bytes_with_header` and `read_str_with_header`: the drawing and, read in the same pass,
+  its HEADER section as a `Header` -- every variable the file states with the groups it wrote
+  for it, and `int`, `real`, `text`, `point2` and `point3` accessors. A variable written twice
+  keeps its last writing and is reported as `HEADER_VARIABLE_REPEATED`.
 - Reads REGION and 3DSOLID as the wireframe of their ACIS body when the record holds it (up
   to R2010), through `uncad_model::acis::wireframe`; a body stored in the `ACDSDATA` section
   (R2013 and later) is still kept as `UNKNOWN`.
