@@ -9,6 +9,9 @@ bumps the minor version.
 
 ### Added
 
+- Reads REGION and 3DSOLID as the wireframe of their ACIS body when the record holds it (up
+  to R2010), through `uncad_model::acis::wireframe`; a body stored in the `ACDSDATA` section
+  (R2013 and later) is still kept as `UNKNOWN`.
 - Reads a dimension's or leader's own style variables (the `ACAD` application's `DSTYLE` list in
   its extended data) into `style_overrides`; an entity without one reads as an empty list.
 - Initial release. `read_bytes` (and `read_str` for text already in Unicode) reads an ASCII

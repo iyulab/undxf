@@ -19,6 +19,7 @@
 
 #![forbid(unsafe_code)]
 
+mod acis;
 mod decode;
 mod entity;
 mod hatch;

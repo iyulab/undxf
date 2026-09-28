@@ -11,8 +11,8 @@ use uncad_model::model::{
     ImageEntity, InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LightEntity, LightType,
     LineEntity, LwPolylineEntity, MLineEntity, MLineVertex, MTextAttachment, MTextEntity,
     MultiLeaderEntity, OrdinateAxis, Origin, OverrideValue, Point2D, Point3D, PointEntity,
-    PolylineVertex, RayEntity, Ref, SolidEntity, SplineEntity, StyleOverride, TextEntity,
-    TextOverride, ToleranceEntity, VerticalJustification, ViewportEntity, ViewportView,
+    PolylineVertex, RayEntity, Ref, Solid3DEntity, SolidEntity, SplineEntity, StyleOverride,
+    TextEntity, TextOverride, ToleranceEntity, VerticalJustification, ViewportEntity, ViewportView,
     WipeoutEntity,
 };
 
@@ -828,6 +828,23 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 extrusion: hatch.extrusion,
                 style: hatch.style,
             })
+        }
+        // The ACIS body's wireframe, when the record holds the body's text
+        // (up to R2010). From R2013 the body is in the ACDSDATA section, in
+        // binary form this crate does not read, and the entity stays UNKNOWN.
+        "3DSOLID" | "REGION" if pairs.iter().any(|p| p.code == 1) => {
+            let sat = crate::acis::sat_text(pairs).unwrap_or_default();
+            let (wireframe_edges, skipped_edges) = uncad_model::acis::wireframe(&sat);
+            let solid = Solid3DEntity {
+                common,
+                wireframe_edges,
+                skipped_edges,
+            };
+            if type_name == "REGION" {
+                Entity::Region(solid)
+            } else {
+                Entity::Solid3D(solid)
+            }
         }
         other => Entity::Unknown {
             common,
