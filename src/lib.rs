@@ -23,6 +23,7 @@
 #![forbid(unsafe_code)]
 
 mod acis;
+mod binary;
 mod decode;
 mod entity;
 mod hatch;

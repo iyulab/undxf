@@ -9,6 +9,9 @@ bumps the minor version.
 
 ### Added
 
+- `read_bytes` reads binary DXF (one-byte codes up to R12, two-byte codes after) as the ASCII
+  text it stands for. A group that runs past the end of the file is `ReadError::Binary`, with
+  its byte offset.
 - `read_bytes_with_header` and `read_str_with_header`: the drawing and, read in the same pass,
   its HEADER section as a `Header` -- every variable the file states with the groups it wrote
   for it, and `int`, `real`, `text`, `point2` and `point3` accessors. A variable written twice
@@ -26,6 +29,5 @@ bumps the minor version.
   its handle; a pre-2007 file's strings are decoded through the code page its header declares.
 - An entity type it does not interpret is kept as `UNKNOWN` under the name the file gave it,
   and a name the file does not declare as an unresolved reference: nothing is dropped.
-  Binary DXF is not read.
 - A file that cannot be read returns a `ReadError` naming the line. It is `#[non_exhaustive]`,
   so a later version can add a reason without breaking callers.

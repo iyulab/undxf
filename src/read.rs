@@ -52,8 +52,10 @@ pub fn read_bytes(bytes: &[u8]) -> Result<CadDatabase, ReadError> {
 /// beside the drawing -- read in the same pass, their strings decoded the
 /// same way.
 pub fn read_bytes_with_header(bytes: &[u8]) -> Result<(CadDatabase, Header), ReadError> {
-    if bytes.starts_with(b"AutoCAD Binary DXF") {
-        return Err(binary());
+    if bytes.starts_with(crate::binary::SENTINEL) {
+        let ascii = crate::binary::to_ascii(bytes)?;
+        let (text, warnings) = crate::decode::decode(&ascii);
+        return read_text(&text, warnings);
     }
     let (text, warnings) = crate::decode::decode(bytes);
     read_text(&text, warnings)
@@ -62,7 +64,7 @@ pub fn read_bytes_with_header(bytes: &[u8]) -> Result<(CadDatabase, Header), Rea
 fn binary() -> ReadError {
     ReadError::Structure {
         line: 1,
-        detail: "binary DXF is not read; this crate reads the ASCII form".to_string(),
+        detail: "binary DXF is not text; read its bytes with read_bytes".to_string(),
     }
 }
 

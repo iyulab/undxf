@@ -30,6 +30,11 @@ pub enum ReadError {
     },
     /// The pairs do not form the sections and records a DXF file has.
     Structure { line: usize, detail: String },
+    /// A binary DXF whose groups cannot be read; `offset` is the byte at
+    /// which the group starts. (Once its groups are read, a binary file is
+    /// read as the ASCII text it stands for, and the other errors' line
+    /// numbers count the lines of that text.)
+    Binary { offset: usize, detail: String },
 }
 
 impl std::fmt::Display for ReadError {
@@ -51,6 +56,7 @@ impl std::fmt::Display for ReadError {
                 )
             }
             ReadError::Structure { line, detail } => write!(f, "line {line}: {detail}"),
+            ReadError::Binary { offset, detail } => write!(f, "byte {offset}: {detail}"),
         }
     }
 }
