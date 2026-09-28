@@ -14,8 +14,19 @@
 use crate::pairs::pairs;
 use encoding_rs::Encoding;
 
-/// The version from which DXF text is UTF-8 (R2007).
-const UTF8_FROM: &str = "AC1021";
+/// The version from which DXF text is UTF-8 (R2007, `AC1021`).
+const UTF8_FROM: u32 = 1021;
+
+/// Whether `$ACADVER` names R2007 or later. The codes from R10 on are `AC`
+/// and four digits; the earlier ones (`AC2.10`, `AC1.50`) are not, and are
+/// older -- a comparison of the strings would put `AC2.10` after `AC1021`.
+fn utf8_version(acadver: &str) -> bool {
+    acadver
+        .strip_prefix("AC")
+        .filter(|n| n.len() == 4 && n.bytes().all(|b| b.is_ascii_digit()))
+        .and_then(|n| n.parse::<u32>().ok())
+        .is_some_and(|n| n >= UTF8_FROM)
+}
 
 /// How far into the file the HEADER section is looked for.
 const HEADER_SCAN: usize = 64 * 1024;
@@ -28,7 +39,7 @@ pub fn decode(bytes: &[u8]) -> (String, Vec<String>) {
     }
     let (version, codepage) = header(bytes);
     let mut warnings = Vec::new();
-    if version.as_deref().is_some_and(|v| v >= UTF8_FROM) {
+    if version.as_deref().is_some_and(utf8_version) {
         warnings.push("TEXT_ENCODING: the file declares a version whose text is UTF-8, but its bytes are not valid UTF-8; invalid sequences read as U+FFFD".to_string());
         return (String::from_utf8_lossy(bytes).into_owned(), warnings);
     }
@@ -260,6 +271,16 @@ mod tests {
             "{}",
             warnings[0]
         );
+    }
+
+    #[test]
+    fn only_a_four_digit_version_from_1021_is_a_utf8_one() {
+        assert!(utf8_version("AC1021"));
+        assert!(utf8_version("AC1032"));
+        assert!(!utf8_version("AC1018"));
+        assert!(!utf8_version("AC2.10"));
+        assert!(!utf8_version("AC1.50"));
+        assert!(!utf8_version(""));
     }
 
     #[test]
