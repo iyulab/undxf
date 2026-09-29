@@ -7,6 +7,14 @@ bumps the minor version.
 
 ## [Unreleased]
 
+### Added
+
+- From R2013 a 3DSOLID's or a REGION's ACIS body is read from the `ACDSDATA` section, where
+  those versions write it in binary (SAB) form: the entity reads as its solid with its wireframe,
+  as it does up to R2010. A body record that cannot be read (a byte count that does not match its
+  data, a chunk that is not hexadecimal) is reported (`ACIS_BODY_UNREADABLE`), and an entity whose
+  body is missing or does not decode stays `Unknown`.
+
 ## [0.1.0] - 2026-09-29
 
 ### Added

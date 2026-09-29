@@ -1,5 +1,5 @@
-//! Sections and records: HEADER, TABLES, BLOCKS, ENTITIES and OBJECTS, then
-//! the references resolved against what the tables declare.
+//! Sections and records: HEADER, TABLES, BLOCKS, ENTITIES, OBJECTS and
+//! ACDSDATA, then the references resolved against what the tables declare.
 
 use crate::decode::string;
 use crate::entity::{self, Space};
@@ -86,6 +86,7 @@ fn read_text(text: &str, warnings: Vec<String>) -> Result<(CadDatabase, Header),
         mlinestyles: BTreeMap::new(),
         layouts: BTreeMap::new(),
         image_definitions: BTreeMap::new(),
+        acis_bodies: BTreeMap::new(),
         blocks: BTreeMap::new(),
         warnings,
         version: None,
@@ -118,6 +119,9 @@ struct Reader<'a, 'b> {
     layouts: BTreeMap<String, LayoutRecord>,
     /// IMAGEDEF handle (upper-case hex) -> the file it names.
     image_definitions: BTreeMap<String, ImageDefinition>,
+    /// From R2013: a 3DSOLID's or a REGION's ACIS body (SAB bytes) from the
+    /// ACDSDATA section, under the handle of the entity it belongs to.
+    acis_bodies: BTreeMap<EntityId, Vec<u8>>,
     blocks: BTreeMap<String, BlockRecord>,
     /// What the decoding reported, then what each entity reported, in the
     /// order they were read.
@@ -194,6 +198,7 @@ impl<'a, 'b> Reader<'a, 'b> {
                         "BLOCKS" => self.blocks()?,
                         "ENTITIES" => self.entities()?,
                         "OBJECTS" => self.objects()?,
+                        "ACDSDATA" => self.acds_data()?,
                         // CLASSES, THUMBNAILIMAGE: nothing the model carries
                         // yet.
                         _ => self.skip_to("ENDSEC")?,
@@ -311,6 +316,35 @@ impl<'a, 'b> Reader<'a, 'b> {
                     let record = self.record();
                     if let Some((handle, definition)) = image_definition(record)? {
                         self.image_definitions.insert(handle, definition);
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+
+    /// The ACDSDATA section (R2013 on): of its records, the model carries
+    /// the ACIS bodies -- a 3DSOLID's or a REGION's body is written here
+    /// rather than in the entity's own record. Records of the other schemas
+    /// (a thumbnail, the schemas' own bookkeeping) are passed over.
+    fn acds_data(&mut self) -> Result<(), ReadError> {
+        loop {
+            let Some(p) = self.next() else {
+                return Err(self.structure("the text ends inside ACDSDATA"));
+            };
+            match (p.code, p.value) {
+                (0, "ENDSEC") => return Ok(()),
+                (0, "ACDSRECORD") => {
+                    let record = self.record();
+                    match acis_body(record) {
+                        Ok(Some((id, bytes))) => {
+                            self.acis_bodies.insert(id, bytes);
+                        }
+                        Ok(None) => {}
+                        Err(detail) => self.warnings.push(format!(
+                            "ACIS_BODY_UNREADABLE: the ACDSRECORD at line {} {detail}; its entity stays unread",
+                            p.line
+                        )),
                     }
                 }
                 _ => {}
@@ -709,6 +743,7 @@ impl<'a, 'b> Reader<'a, 'b> {
             mlinestyles,
             mut layouts,
             image_definitions,
+            acis_bodies,
             mut blocks,
             warnings,
             version,
@@ -746,6 +781,7 @@ impl<'a, 'b> Reader<'a, 'b> {
             .collect();
         for block in blocks.values_mut() {
             for e in &mut block.entities {
+                read_acis_body(e, &acis_bodies);
                 resolve_names(e, &names);
                 resolve_entity_refs(e, &ids);
             }
@@ -778,6 +814,91 @@ impl<'a, 'b> Reader<'a, 'b> {
             read_diagnostics: ReadDiagnostics { warnings },
         }
     }
+}
+
+/// An ACDSRECORD's ACIS body and the handle of the entity it belongs to;
+/// `None` for a record of another schema. The body's record names its
+/// fields: `AcDbDs::ID` with the entity's handle (320), then `ASM_Data` with
+/// the byte count (94) and the bytes, in hexadecimal over any number of 310s.
+/// `Err` says what is wrong with a body record that cannot be read.
+fn acis_body(record: &[Pair<'_>]) -> Result<Option<(EntityId, Vec<u8>)>, String> {
+    let Some(data) = record
+        .iter()
+        .position(|p| p.code == 2 && p.value.trim() == "ASM_Data")
+    else {
+        return Ok(None);
+    };
+    let (head, body) = record.split_at(data);
+    let handle = head
+        .iter()
+        .find(|p| p.code == 320)
+        .ok_or("names no entity (no 320)")?
+        .value
+        .trim();
+    let id = u64::from_str_radix(handle, 16)
+        .map_err(|_| format!("names its entity by `{handle}`, not a handle"))?;
+    let count: usize = body
+        .iter()
+        .find(|p| p.code == 94)
+        .ok_or("gives no byte count (no 94)")?
+        .value
+        .trim()
+        .parse()
+        .map_err(|_| "gives a byte count (94) that is not a number".to_string())?;
+    let mut bytes = Vec::with_capacity(count);
+    for chunk in body.iter().filter(|p| p.code == 310) {
+        let (pairs, rest) = chunk.value.trim().as_bytes().as_chunks::<2>();
+        if !rest.is_empty() {
+            return Err(format!("has an odd-length hex chunk (line {})", chunk.line));
+        }
+        for pair in pairs {
+            let digits = std::str::from_utf8(pair).ok();
+            let byte = digits
+                .and_then(|d| u8::from_str_radix(d, 16).ok())
+                .ok_or_else(|| {
+                    format!(
+                        "has a hex chunk that is not hexadecimal (line {})",
+                        chunk.line
+                    )
+                })?;
+            bytes.push(byte);
+        }
+    }
+    if bytes.len() != count {
+        return Err(format!(
+            "holds {} bytes where its 94 says {count}",
+            bytes.len()
+        ));
+    }
+    Ok(Some((EntityId::new(id), bytes)))
+}
+
+/// Turns a 3DSOLID or a REGION read without its body (R2013 on: its record
+/// has none, and it was kept as `Unknown`) into the solid its ACDSDATA body
+/// describes. One whose body is missing or does not decode stays `Unknown`.
+fn read_acis_body(e: &mut Entity, bodies: &BTreeMap<EntityId, Vec<u8>>) {
+    let Entity::Unknown { common, type_name } = e else {
+        return;
+    };
+    if type_name != "3DSOLID" && type_name != "REGION" {
+        return;
+    }
+    let Some((wireframe_edges, skipped_edges)) = bodies
+        .get(&common.id)
+        .and_then(|sab| uncad_model::acis::wireframe_sab(sab))
+    else {
+        return;
+    };
+    let solid = Solid3DEntity {
+        common: common.clone(),
+        wireframe_edges,
+        skipped_edges,
+    };
+    *e = if type_name == "REGION" {
+        Entity::Region(solid)
+    } else {
+        Entity::Solid3D(solid)
+    };
 }
 
 /// `*Model_Space` and every `*Paper_Space*` layout block.

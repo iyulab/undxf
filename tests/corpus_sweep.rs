@@ -173,6 +173,12 @@ fn corpus_sweep() {
     assert_eq!(s.known.get("TOLERANCE"), Some(&18));
     assert_eq!(s.known.get("WIPEOUT"), Some(&32));
     assert_eq!(s.known.get("MLINE"), Some(&20));
+    // ACIS bodies: in the record up to R2010, in the ACDSDATA section from
+    // R2013 -- every 3DSOLID and REGION reads as a solid.
+    assert_eq!(s.known.get("3DSOLID"), Some(&20));
+    assert_eq!(s.known.get("REGION"), Some(&36));
+    assert_eq!(s.unknown.get("3DSOLID"), None);
+    assert_eq!(s.unknown.get("REGION"), None);
     // Raster images: five in each of the seven versions of one drawing,
     // counted at the top level and in the model space block alike.
     assert_eq!(s.known.get("IMAGE"), Some(&70));

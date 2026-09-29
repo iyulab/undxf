@@ -1,6 +1,7 @@
 //! A 3DSOLID's or a REGION's ACIS body: the wireframe of the SAT text the
-//! record holds, undone from how DXF stores it; a record whose body is not in
-//! the record stays UNKNOWN.
+//! record holds, undone from how DXF stores it, or of the SAB bytes the
+//! ACDSDATA section holds for it (R2013 on); an entity whose body is in
+//! neither stays UNKNOWN.
 
 use std::path::Path;
 use uncad_model::model::{Entity, Point3D};
@@ -98,21 +99,233 @@ fn a_body_stored_outside_the_record_stays_unknown() {
     );
 }
 
+/// SAB bytes of one straight edge from (0, 0, 0) to (1, 2, 3): the header,
+/// then records 0 asmheader, 1-2 point, 3-4 vertex, 5 edge, then the
+/// end-of-data marker.
+fn sab_one_edge() -> Vec<u8> {
+    let mut b = b"ASM BinaryFile4".to_vec();
+    for v in [22300i32, 0, 2, 4] {
+        b.extend(v.to_le_bytes());
+    }
+    let string = |b: &mut Vec<u8>, t: &str| {
+        b.push(0x07);
+        b.push(t.len() as u8);
+        b.extend(t.as_bytes());
+    };
+    let ident = |b: &mut Vec<u8>, t: &str| {
+        let parts: Vec<&str> = t.split('-').collect();
+        for (i, part) in parts.iter().enumerate() {
+            b.push(if i + 1 == parts.len() { 0x0D } else { 0x0E });
+            b.push(part.len() as u8);
+            b.extend(part.as_bytes());
+        }
+    };
+    let ptr = |b: &mut Vec<u8>, v: i32| {
+        b.push(0x0C);
+        b.extend(v.to_le_bytes());
+    };
+    let int = |b: &mut Vec<u8>, v: i32| {
+        b.push(0x04);
+        b.extend(v.to_le_bytes());
+    };
+    for t in ["Product", "ASM 223.0", "Mon Jan 01 00:00:00 2024"] {
+        string(&mut b, t);
+    }
+    for v in [1.0f64, 1e-6, 1e-10] {
+        b.push(0x06);
+        b.extend(v.to_le_bytes());
+    }
+    ident(&mut b, "asmheader");
+    ptr(&mut b, -1);
+    int(&mut b, -1);
+    string(&mut b, "223.0.1.1930");
+    b.push(0x11);
+    for p in [[0.0f64, 0.0, 0.0], [1.0, 2.0, 3.0]] {
+        ident(&mut b, "point");
+        ptr(&mut b, -1);
+        int(&mut b, -1);
+        ptr(&mut b, -1);
+        b.push(0x13);
+        for v in p {
+            b.extend(v.to_le_bytes());
+        }
+        b.push(0x11);
+    }
+    for point in [1, 2] {
+        ident(&mut b, "vertex");
+        for v in [-1, 5] {
+            ptr(&mut b, v);
+        }
+        int(&mut b, 0);
+        ptr(&mut b, point);
+        b.push(0x11);
+    }
+    ident(&mut b, "edge");
+    for v in [-1, 3, 4] {
+        ptr(&mut b, v);
+    }
+    b.push(0x11);
+    ident(&mut b, "End-of-ASM-data");
+    b
+}
+
+/// An R2013-style drawing: the entity's record holds no body, and an
+/// ACDSDATA record holds `sab` for handle 2E1 -- over two 310s, with `count`
+/// in its 94 -- next to a thumbnail record the reader passes over.
+fn acdsdata_drawing(type_name: &str, sab: &[u8], count: usize) -> String {
+    let hex: String = sab.iter().map(|b| format!("{b:02X}")).collect();
+    let (a, b) = hex.split_at(hex.len() / 2 / 2 * 2);
+    format!(
+        "  0
+SECTION
+  2
+ENTITIES
+  0
+{type_name}
+  5
+2E1
+100
+AcDbEntity
+  8
+0
+100
+AcDbModelerGeometry
+290
+1
+  2
+{{7cf5f000-46fc-4a48-beef-14b47a01fb47}}
+  0
+ENDSEC
+          0
+SECTION
+  2
+ACDSDATA
+ 70
+2
+ 71
+2
+          0
+ACDSRECORD
+ 90
+0
+  2
+AcDbDs::ID
+280
+10
+320
+22
+  2
+Thumbnail_Data
+280
+15
+ 94
+2
+310
+ABCD
+          0
+ACDSRECORD
+ 90
+1
+  2
+AcDbDs::ID
+280
+10
+320
+2E1
+  2
+ASM_Data
+280
+15
+ 94
+{count}
+310
+{a}
+310
+{b}
+          0
+ENDSEC
+  0
+EOF
+"
+    )
+}
+
+#[test]
+fn an_r2013_body_in_the_acdsdata_section_reads_as_its_wireframe() {
+    let sab = sab_one_edge();
+    for (type_name, want_region) in [("3DSOLID", false), ("REGION", true)] {
+        let db = read_str(&acdsdata_drawing(type_name, &sab, sab.len())).unwrap();
+        let (Entity::Solid3D(s) | Entity::Region(s)) = &db.entities[0] else {
+            panic!("a solid, got {:?}", db.entities[0]);
+        };
+        assert_eq!(matches!(db.entities[0], Entity::Region(_)), want_region);
+        assert_eq!(s.skipped_edges, 0);
+        assert_eq!(
+            s.wireframe_edges,
+            vec![[
+                Point3D {
+                    x: 0.0,
+                    y: 0.0,
+                    z: 0.0
+                },
+                Point3D {
+                    x: 1.0,
+                    y: 2.0,
+                    z: 3.0
+                }
+            ]]
+        );
+        assert!(
+            db.read_diagnostics.warnings.is_empty(),
+            "{:?}",
+            db.read_diagnostics.warnings
+        );
+    }
+}
+
+#[test]
+fn an_acdsdata_body_of_the_wrong_length_leaves_its_entity_unknown_and_says_so() {
+    let sab = sab_one_edge();
+    let db = read_str(&acdsdata_drawing("3DSOLID", &sab, sab.len() + 1)).unwrap();
+    assert!(
+        matches!(&db.entities[0], Entity::Unknown { type_name, .. } if type_name == "3DSOLID"),
+        "{:?}",
+        db.entities[0]
+    );
+    let warnings = &db.read_diagnostics.warnings;
+    assert!(
+        warnings.len() == 1 && warnings[0].starts_with("ACIS_BODY_UNREADABLE:"),
+        "{warnings:?}"
+    );
+}
+
+#[test]
+fn an_acdsdata_body_that_does_not_decode_leaves_its_entity_unknown() {
+    let mut sab = sab_one_edge();
+    sab.truncate(sab.len() - 4);
+    let db = read_str(&acdsdata_drawing("REGION", &sab, sab.len())).unwrap();
+    assert!(
+        matches!(&db.entities[0], Entity::Unknown { type_name, .. } if type_name == "REGION"),
+        "{:?}",
+        db.entities[0]
+    );
+}
+
 const CORPUS: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../uncad/lib/libredwg/test/test-data"
 );
 
-/// The same drawing saved from R2000 to R2010: every body is in the record,
-/// and each top-level one reads to the edge counts its DWG twin gives through a DWG reader
-/// (REGION 4 · 3DSOLID 18 · REGION 4, none skipped).
+/// The same drawing saved from R2000 to R2018: every body -- in the record up
+/// to R2010, in the ACDSDATA section from R2013 -- reads to the same edge
+/// counts (REGION 4 · 3DSOLID 18 · REGION 4, none skipped).
 #[test]
-fn the_example_drawings_read_every_body_in_the_record() {
+fn the_example_drawings_read_every_body() {
     if !Path::new(CORPUS).is_dir() {
         println!("skipped -- no corpus at {CORPUS}");
         return;
     }
-    for version in ["2000", "2004", "2007", "2010"] {
+    for version in ["2000", "2004", "2007", "2010", "2013", "2018"] {
         let path = format!("{CORPUS}/example_{version}.dxf");
         let db = undxf::read_bytes(&std::fs::read(&path).unwrap()).unwrap();
         let bodies: Vec<(&str, usize, usize)> = db

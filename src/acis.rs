@@ -8,8 +8,8 @@
 //! 0x5E) are written in reverse order of that range -- `^` means `A`, and an
 //! `A` is written as `^` followed by a space, which is not part of the text --
 //! and every other character is written XOR 0x5F. From R2013 the body is in
-//! the `ACDSDATA` section, in ACIS's binary form, and the record has no
-//! group 1 at all.
+//! the `ACDSDATA` section, in ACIS's binary form (SAB), and the record has no
+//! group 1 at all -- the reader takes it from there.
 
 use crate::pairs::Pair;
 

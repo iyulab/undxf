@@ -830,8 +830,9 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             })
         }
         // The ACIS body's wireframe, when the record holds the body's text
-        // (up to R2010). From R2013 the body is in the ACDSDATA section, in
-        // binary form this crate does not read, and the entity stays UNKNOWN.
+        // (up to R2010). From R2013 the body is in the ACDSDATA section, as
+        // SAB bytes: the entity is kept UNKNOWN here, and the reader turns it
+        // into its solid once that section has been read.
         "3DSOLID" | "REGION" if pairs.iter().any(|p| p.code == 1) => {
             let sat = crate::acis::sat_text(pairs).unwrap_or_default();
             let (wireframe_edges, skipped_edges) = uncad_model::acis::wireframe(&sat);
