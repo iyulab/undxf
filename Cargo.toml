@@ -27,7 +27,7 @@ iter_over_hash_type = "warn"
 [dependencies]
 # The model the drawing is expressed in. A version dependency, never a path:
 # this crate must build from a standalone checkout.
-uncad-model = "0.1.0"
+uncad-model = "0.2.0"
 serde = { version = "1.0.229", features = ["derive"] }
 # The code pages a pre-2007 file stores its strings in ($DWGCODEPAGE):
 # the WHATWG encodings, which cover every ANSI_ code page the DXF

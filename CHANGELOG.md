@@ -7,6 +7,8 @@ bumps the minor version.
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-09-29
+
 ### Added
 
 - Code page names besides the `ANSI_` forms are read (`GB2312`, `BIG5`, `CP932`, `CP949`,
