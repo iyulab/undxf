@@ -15,6 +15,11 @@ bumps the minor version.
   data, a chunk that is not hexadecimal) is reported (`ACIS_BODY_UNREADABLE`), and an entity whose
   body is missing or does not decode stays `Unknown`.
 
+### Fixed
+
+- An R13 or R14 3DSOLID or REGION reads its wireframe: the model now reads the one-line header
+  of an ACIS SAT text from before ACIS 2.0, where every edge was skipped before.
+
 ## [0.1.0] - 2026-09-29
 
 ### Added

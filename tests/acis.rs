@@ -316,16 +316,17 @@ const CORPUS: &str = concat!(
     "/../uncad/lib/libredwg/test/test-data"
 );
 
-/// The same drawing saved from R2000 to R2018: every body -- in the record up
-/// to R2010, in the ACDSDATA section from R2013 -- reads to the same edge
-/// counts (REGION 4 · 3DSOLID 18 · REGION 4, none skipped).
+/// The same drawing saved from R13 to R2018: every body -- in the record up
+/// to R2010 (R13 and R14 with an ACIS 1.x header), in the ACDSDATA section
+/// from R2013 -- reads to the same edge counts (REGION 4 · 3DSOLID 18 ·
+/// REGION 4, none skipped).
 #[test]
 fn the_example_drawings_read_every_body() {
     if !Path::new(CORPUS).is_dir() {
         println!("skipped -- no corpus at {CORPUS}");
         return;
     }
-    for version in ["2000", "2004", "2007", "2010", "2013", "2018"] {
+    for version in ["r13", "r14", "2000", "2004", "2007", "2010", "2013", "2018"] {
         let path = format!("{CORPUS}/example_{version}.dxf");
         let db = undxf::read_bytes(&std::fs::read(&path).unwrap()).unwrap();
         let bodies: Vec<(&str, usize, usize)> = db
