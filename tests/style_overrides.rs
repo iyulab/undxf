@@ -77,8 +77,15 @@ fn dxfs_under(dir: &Path, out: &mut Vec<PathBuf>) {
 /// not look at). Each is read whole, in order.
 #[test]
 fn the_corpus_lists_are_read_whole() {
+    let root = Path::new(CORPUS);
+    if !root.is_dir() {
+        println!(
+            "skipped -- no corpus at {CORPUS} (a tree carrying uncad beside this crate has it)"
+        );
+        return;
+    }
     let mut files = Vec::new();
-    dxfs_under(Path::new(CORPUS), &mut files);
+    dxfs_under(root, &mut files);
     files.sort();
     let (mut dimensions, mut leaders) = (0, 0);
     let mut seen = Vec::new();
