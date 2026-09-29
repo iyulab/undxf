@@ -7,6 +7,8 @@ bumps the minor version.
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-09-30
+
 ### Added
 
 - From R2013 a 3DSOLID's or a REGION's ACIS body is read from the `ACDSDATA` section, where
