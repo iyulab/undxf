@@ -7,6 +7,13 @@ bumps the minor version.
 
 ## [Unreleased]
 
+### Changed
+
+- A MULTILEADER is read as its leader roots (`uncad-model`'s `LeaderRoot`): each `LEADER{`
+  block's lines, and its last leader line point (10, when 290 is 1) and dogleg (11 and 40,
+  when 291 is 1). These were dropped before, which left a leader line of one vertex -- the
+  usual case -- with nothing to draw.
+
 ## [0.1.1] - 2026-09-30
 
 ### Added

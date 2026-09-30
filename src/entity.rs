@@ -6,14 +6,14 @@ use crate::decode::string;
 use crate::pairs::{Pair, ReadError};
 use uncad_model::model::{
     AcadTableEntity, ArcEntity, AttdefEntity, AttribEntity, AttributeFlags, CircleEntity,
-    Confidence, DimensionEntity, DimensionKind, DimensionPoints, EllipseEntity, Entity,
+    Confidence, DimensionEntity, DimensionKind, DimensionPoints, Dogleg, EllipseEntity, Entity,
     EntityCommon, EntityId, EntityLinetype, Face3DEntity, HatchEntity, HorizontalJustification,
-    ImageEntity, InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LightEntity, LightType,
-    LineEntity, LwPolylineEntity, MLineEntity, MLineVertex, MTextAttachment, MTextEntity,
-    MultiLeaderEntity, OrdinateAxis, Origin, OverrideValue, Point2D, Point3D, PointEntity,
-    PolylineVertex, RayEntity, Ref, Solid3DEntity, SolidEntity, SplineEntity, StyleOverride,
-    TextEntity, TextOverride, ToleranceEntity, VerticalJustification, ViewportEntity, ViewportView,
-    WipeoutEntity,
+    ImageEntity, InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LeaderRoot, LightEntity,
+    LightType, LineEntity, LwPolylineEntity, MLineEntity, MLineVertex, MTextAttachment,
+    MTextEntity, MultiLeaderEntity, OrdinateAxis, Origin, OverrideValue, Point2D, Point3D,
+    PointEntity, PolylineVertex, RayEntity, Ref, Solid3DEntity, SolidEntity, SplineEntity,
+    StyleOverride, TextEntity, TextOverride, ToleranceEntity, VerticalJustification,
+    ViewportEntity, ViewportView, WipeoutEntity,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -763,11 +763,10 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 end_tangent: optional_point3(pairs, 13)?,
             })
         }
-        // The leader lines only, each the points of one `LEADER_LINE{}`
-        // block of the record's context data, in file order.
+        // The leader roots only, each with the lines that run to it.
         "MULTILEADER" => Entity::MultiLeader(MultiLeaderEntity {
             common,
-            lines: multileader_lines(pairs)?,
+            leaders: multileader_leaders(pairs)?,
         }),
         // A light: where it is, what it aims at (11 -- a point light states
         // it too), and which kind it is. Whether it aims follows from the
@@ -1086,43 +1085,90 @@ fn optional_point2(pairs: &[Pair<'_>], x: i32) -> Result<Option<Point2D>, ReadEr
 /// A point the file carries only for some dimension subtypes. Its absence is
 /// the x group's absence: a subtype that does not use the point writes none
 /// of its three groups.
-/// A MULTILEADER's leader lines: the points (10/20/30) inside each
-/// `LEADER_LINE{` ... `}` block (groups 304 and 305), in file order. A line
-/// with no point is not a line.
-fn multileader_lines(pairs: &[Pair<'_>]) -> Result<Vec<Vec<Point3D>>, ReadError> {
-    let mut lines = Vec::new();
-    let mut current: Option<Vec<Point3D>> = None;
-    let mut i = 0;
-    while i < pairs.len() {
-        let p = &pairs[i];
-        match (p.code, p.value.trim()) {
-            (304, "LEADER_LINE{") => current = Some(Vec::new()),
-            (305, "}") => {
-                if let Some(points) = current.take().filter(|l| !l.is_empty()) {
-                    lines.push(points);
+/// A MULTILEADER's leader roots: each `LEADER{` ... `}` block (groups 302
+/// and 303) of the record's context data, in file order, with the lines of
+/// its `LEADER_LINE{` ... `}` blocks (groups 304 and 305) -- a line's points
+/// (10/20/30), a line with no point being no line -- and, outside them, the
+/// root's last leader line point (10/20/30, stated when 290 is 1) and dogleg
+/// (direction 11/21/31 and length 40, stated when 291 is 1). A flag the root
+/// sets to 0 leaves its value `None`; so does a flag set with the value left
+/// out, which is not guessed.
+fn multileader_leaders(pairs: &[Pair<'_>]) -> Result<Vec<LeaderRoot>, ReadError> {
+    /// The root being read: its lines, flags and stated values.
+    #[derive(Default)]
+    struct Open {
+        lines: Vec<Vec<Point3D>>,
+        has_last: Option<bool>,
+        last: Option<Point3D>,
+        has_dogleg: Option<bool>,
+        direction: Option<Point3D>,
+        length: Option<f64>,
+    }
+    // The point whose x is at `i`, its y and z in the two pairs after it.
+    let point_at = |i: usize, x: i32| -> Result<Point3D, ReadError> {
+        let at = |offset: usize, code: i32| {
+            pairs
+                .get(i + offset)
+                .filter(|q| q.code == code)
+                .map(number)
+                .transpose()
+        };
+        Ok(Point3D {
+            x: number(&pairs[i])?,
+            y: at(1, x + 10)?.unwrap_or(0.0),
+            z: at(2, x + 20)?.unwrap_or(0.0),
+        })
+    };
+    let flag = |p: &Pair<'_>| -> Result<bool, ReadError> { Ok(number(p)? != 0.0) };
+    let mut leaders = Vec::new();
+    let mut root: Option<Open> = None;
+    let mut line: Option<Vec<Point3D>> = None;
+    for (i, p) in pairs.iter().enumerate() {
+        let value = p.value.trim();
+        if p.code == 302 && value == "LEADER{" {
+            root = Some(Open::default());
+            continue;
+        }
+        let Some(open) = root.as_mut() else {
+            continue;
+        };
+        // Inside a line: its points, until it closes.
+        if let Some(points) = line.as_mut() {
+            match (p.code, value) {
+                (10, _) => points.push(point_at(i, 10)?),
+                (305, "}") => {
+                    if let Some(points) = line.take().filter(|l| !l.is_empty()) {
+                        open.lines.push(points);
+                    }
                 }
+                _ => {}
             }
-            (10, _) => {
-                if let Some(points) = current.as_mut() {
-                    let at = |code: i32| {
-                        pairs
-                            .get(i + usize::try_from(code / 10 - 1).unwrap_or(0))
-                            .filter(|q| q.code == code)
-                            .map(number)
-                            .transpose()
-                    };
-                    points.push(Point3D {
-                        x: number(p)?,
-                        y: at(20)?.unwrap_or(0.0),
-                        z: at(30)?.unwrap_or(0.0),
-                    });
-                }
+            continue;
+        }
+        // The root's own groups.
+        match (p.code, value) {
+            (304, "LEADER_LINE{") => line = Some(Vec::new()),
+            (10, _) => open.last = Some(point_at(i, 10)?),
+            (11, _) => open.direction = Some(point_at(i, 11)?),
+            (40, _) => open.length = Some(number(p)?),
+            (290, _) => open.has_last = Some(flag(p)?),
+            (291, _) => open.has_dogleg = Some(flag(p)?),
+            (303, "}") => {
+                let open = root.take().unwrap_or_default();
+                leaders.push(LeaderRoot {
+                    lines: open.lines,
+                    last_point: open.last.filter(|_| open.has_last != Some(false)),
+                    dogleg: match (open.has_dogleg, open.direction, open.length) {
+                        (Some(false), _, _) => None,
+                        (_, Some(direction), Some(length)) => Some(Dogleg { direction, length }),
+                        _ => None,
+                    },
+                });
             }
             _ => {}
         }
-        i += 1;
     }
-    Ok(lines)
+    Ok(leaders)
 }
 
 fn optional_point3(pairs: &[Pair<'_>], x: i32) -> Result<Option<Point3D>, ReadError> {
