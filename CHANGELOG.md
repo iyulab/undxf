@@ -7,6 +7,8 @@ bumps the minor version.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-02
+
 ### Added
 
 - The drawing's `header` carries the `$INSUNITS` code the HEADER section states (`None` when
@@ -18,6 +20,7 @@ bumps the minor version.
   block's lines, and its last leader line point (10, when 290 is 1) and dogleg (11 and 40,
   when 291 is 1). These were dropped before, which left a leader line of one vertex -- the
   usual case -- with nothing to draw.
+- Built on `uncad-model` 0.3.0 (the drawing's `header`; a multileader's leader roots).
 
 ## [0.1.1] - 2026-09-30
 
