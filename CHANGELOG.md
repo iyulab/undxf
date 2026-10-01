@@ -7,6 +7,11 @@ bumps the minor version.
 
 ## [Unreleased]
 
+### Added
+
+- The drawing's `header` carries the `$INSUNITS` code the HEADER section states (`None` when
+  it states none, or a value outside group 70's 16 bits).
+
 ### Changed
 
 - A MULTILEADER is read as its leader roots (`uncad-model`'s `LeaderRoot`): each `LEADER{`

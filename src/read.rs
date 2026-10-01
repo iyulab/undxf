@@ -15,7 +15,7 @@ use uncad_model::tables::{
     LayerRecord, LayoutRecord, LinearUnitFormat, PlotPaperUnits, PlotRotation, PlotSettings,
     ResolutionUnit, Tables,
 };
-use uncad_model::{CadDatabase, ReadDiagnostics};
+use uncad_model::{CadDatabase, HeaderVariables, ReadDiagnostics};
 
 const MODEL_SPACE: &str = "*Model_Space";
 const PAPER_SPACE: &str = "*Paper_Space";
@@ -93,8 +93,7 @@ fn read_text(text: &str, warnings: Vec<String>) -> Result<(CadDatabase, Header),
         header: Header::default(),
     };
     reader.file()?;
-    let header = std::mem::take(&mut reader.header);
-    Ok((reader.finish(), header))
+    Ok(reader.finish())
 }
 
 struct Reader<'a, 'b> {
@@ -732,7 +731,7 @@ impl<'a, 'b> Reader<'a, 'b> {
     /// Resolves layer and block names against the tables and entity
     /// references against the entities read, lists what the space blocks
     /// own as the drawing's own entities, and assembles the drawing.
-    fn finish(self) -> CadDatabase {
+    fn finish(self) -> (CadDatabase, Header) {
         let Reader {
             mut layers,
             layer_handles,
@@ -747,6 +746,7 @@ impl<'a, 'b> Reader<'a, 'b> {
             mut blocks,
             warnings,
             version,
+            header,
             ..
         } = self;
         let block_names: Vec<String> = blocks.keys().cloned().collect();
@@ -801,7 +801,11 @@ impl<'a, 'b> Reader<'a, 'b> {
                 }
             }
         }
-        CadDatabase {
+        let variables = HeaderVariables {
+            // Group 70 is 16-bit: a value outside it names no unit.
+            insunits: header.int("INSUNITS").and_then(|v| u16::try_from(v).ok()),
+        };
+        let db = CadDatabase {
             entities,
             tables: Tables {
                 layers,
@@ -811,8 +815,10 @@ impl<'a, 'b> Reader<'a, 'b> {
                 layouts,
                 image_definitions,
             },
+            header: variables,
             read_diagnostics: ReadDiagnostics { warnings },
-        }
+        };
+        (db, header)
     }
 }
 

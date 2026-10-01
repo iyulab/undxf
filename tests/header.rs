@@ -57,6 +57,23 @@ fn a_file_without_a_header_section_states_nothing() {
     assert!(header.variables.is_empty());
 }
 
+#[test]
+fn the_drawing_carries_the_unit_code_the_header_states() {
+    let (db, _) = read_str_with_header(TEXT).unwrap();
+    assert_eq!(db.header.insunits, Some(4));
+    assert_eq!(db.header.units().map(|u| u.name), Some("mm".to_string()));
+
+    let unstated = TEXT.replace("  9\n$INSUNITS\n 70\n     4\n", "");
+    let (db, _) = read_str_with_header(&unstated).unwrap();
+    assert_eq!(db.header.insunits, None);
+
+    // Group 70 is 16-bit: a value outside it names no unit.
+    let out_of_range = TEXT.replace(" 70\n     4\n", " 70\n 70000\n");
+    let (db, header) = read_str_with_header(&out_of_range).unwrap();
+    assert_eq!(header.int("INSUNITS"), Some(70000));
+    assert_eq!(db.header.insunits, None);
+}
+
 const CORPUS: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../uncad/lib/libredwg/test/test-data"
