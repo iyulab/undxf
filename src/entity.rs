@@ -34,6 +34,10 @@ pub enum Space {
 pub struct Read {
     pub entity: Entity,
     pub space: Space,
+    /// A MULTILEADER's line-type groups, which settle its
+    /// [`line_type`](uncad_model::model::MultiLeaderEntity::line_type) once
+    /// the style it names is known; `None` for every other type.
+    pub line_type_groups: Option<LineTypeGroups>,
     /// `true` for an INSERT whose attributes follow (DXF 66).
     pub attribs_follow: bool,
     /// What this reader had to substitute for something the file did not
@@ -342,6 +346,61 @@ fn own_part<'p, 'a>(pairs: &'p [Pair<'a>]) -> &'p [Pair<'a>] {
     &pairs[..end]
 }
 
+/// What a MULTILEADER states about how its lines are drawn, as the inputs
+/// of [`uncad_model::model::LeaderLineType::resolve`]: the entity's override
+/// flags (90), type (170) and style handle (340) -- the entity's own, which
+/// follow its context data, not the like-numbered groups inside it -- and
+/// each line's override flags (93) and type (170) inside its
+/// `LEADER_LINE{` block, for the lines the model keeps (those with a point).
+pub struct LineTypeGroups {
+    pub flags: Option<u32>,
+    pub entity_type: Option<i64>,
+    pub style: Option<String>,
+    pub lines: Vec<(Option<u32>, Option<i64>)>,
+}
+
+fn multileader_line_type_groups(pairs: &[Pair<'_>]) -> Result<LineTypeGroups, ReadError> {
+    // A flag word is a 32-bit pattern; a file may write it signed.
+    let flags = |p: &Pair<'_>| integer(p).map(|v| v as u32);
+    let mut groups = LineTypeGroups {
+        flags: None,
+        entity_type: None,
+        style: None,
+        lines: Vec::new(),
+    };
+    let mut in_context = false;
+    // The line being read: whether it has a point, and its two groups.
+    let mut line: Option<(bool, Option<u32>, Option<i64>)> = None;
+    for p in pairs {
+        let value = p.value.trim();
+        match (p.code, value) {
+            (300, "CONTEXT_DATA{") => in_context = true,
+            (301, "}") => in_context = false,
+            (305, "}") if in_context => {
+                if let Some((true, own_flags, own_type)) = line.take() {
+                    groups.lines.push((own_flags, own_type));
+                }
+            }
+            (304, "LEADER_LINE{") if in_context => line = Some((false, None, None)),
+            _ if in_context => {
+                if let Some((has_point, own_flags, own_type)) = line.as_mut() {
+                    match p.code {
+                        10 => *has_point = true,
+                        93 => *own_flags = Some(flags(p)?),
+                        170 => *own_type = Some(integer(p)?),
+                        _ => {}
+                    }
+                }
+            }
+            (90, _) if groups.flags.is_none() => groups.flags = Some(flags(p)?),
+            (170, _) if groups.entity_type.is_none() => groups.entity_type = Some(integer(p)?),
+            (340, _) if groups.style.is_none() => groups.style = Some(value.to_ascii_uppercase()),
+            _ => {}
+        }
+    }
+    Ok(groups)
+}
+
 /// Builds the entity `type_name` from its pairs.
 pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, ReadError> {
     let pairs = own_part(pairs);
@@ -352,6 +411,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
         _ => Space::Model,
     };
     let mut attribs_follow = false;
+    let mut line_type_groups = None;
     let mut warnings = missing_required_groups(type_name, pairs);
     let entity = match type_name {
         "LINE" => Entity::Line(LineEntity {
@@ -764,10 +824,15 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             })
         }
         // The leader roots only, each with the lines that run to it.
-        "MULTILEADER" => Entity::MultiLeader(MultiLeaderEntity {
-            common,
-            leaders: multileader_leaders(pairs)?,
-        }),
+        "MULTILEADER" => {
+            line_type_groups = Some(multileader_line_type_groups(pairs)?);
+            Entity::MultiLeader(MultiLeaderEntity {
+                common,
+                leaders: multileader_leaders(pairs)?,
+                // Settled by the reader once the styles are read.
+                line_type: None,
+            })
+        }
         // A light: where it is, what it aims at (11 -- a point light states
         // it too), and which kind it is. Whether it aims follows from the
         // kind and is left to whoever needs it.
@@ -854,6 +919,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
     Ok(Read {
         entity,
         space,
+        line_type_groups,
         attribs_follow,
         warnings,
     })

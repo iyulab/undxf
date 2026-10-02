@@ -7,6 +7,13 @@ bumps the minor version.
 
 ## [Unreleased]
 
+### Added
+
+- A multileader's `line_type`, from its own override flags, type and style (the groups after
+  its context data, not the like-numbered ones inside it), the MLEADERSTYLE objects' line
+  type (173) and each leader line's own override (93 and 170 inside its block).
+
+
 ## [0.2.0] - 2026-10-02
 
 ### Added

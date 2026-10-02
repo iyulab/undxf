@@ -7,8 +7,8 @@ use crate::header::{Header, HeaderGroup};
 use crate::pairs::{pairs, Pair, ReadError};
 use std::collections::{BTreeMap, BTreeSet};
 use uncad_model::model::{
-    Entity, EntityCommon, EntityId, EntityLinetype, LwPolylineEntity, Point2D, Point3D,
-    PolylineEntity, PolylineVertex, Ref, Solid3DEntity,
+    Entity, EntityCommon, EntityId, EntityLinetype, LeaderLineType, LwPolylineEntity, Point2D,
+    Point3D, PolylineEntity, PolylineVertex, Ref, Solid3DEntity,
 };
 use uncad_model::tables::{
     AngularUnitFormat, ArcSymbol, BlockRecord, DimStyleRecord, FractionFormat, ImageDefinition,
@@ -86,6 +86,8 @@ fn read_text(text: &str, warnings: Vec<String>) -> Result<(CadDatabase, Header),
         mlinestyles: BTreeMap::new(),
         layouts: BTreeMap::new(),
         image_definitions: BTreeMap::new(),
+        mleader_styles: BTreeMap::new(),
+        line_type_groups: BTreeMap::new(),
         acis_bodies: BTreeMap::new(),
         blocks: BTreeMap::new(),
         warnings,
@@ -118,6 +120,11 @@ struct Reader<'a, 'b> {
     layouts: BTreeMap<String, LayoutRecord>,
     /// IMAGEDEF handle (upper-case hex) -> the file it names.
     image_definitions: BTreeMap<String, ImageDefinition>,
+    /// MLEADERSTYLE handle (upper-case hex) -> its leader line type (173),
+    /// if it states one.
+    mleader_styles: BTreeMap<String, Option<i64>>,
+    /// A MULTILEADER's line-type groups, until the styles are read.
+    line_type_groups: BTreeMap<EntityId, entity::LineTypeGroups>,
     /// From R2013: a 3DSOLID's or a REGION's ACIS body (SAB bytes) from the
     /// ACDSDATA section, under the handle of the entity it belongs to.
     acis_bodies: BTreeMap<EntityId, Vec<u8>>,
@@ -309,6 +316,18 @@ impl<'a, 'b> Reader<'a, 'b> {
                     let record = self.record();
                     if let Some(layout) = layout(record)? {
                         self.layouts.insert(layout.name.clone(), layout);
+                    }
+                }
+                (0, "MLEADERSTYLE") => {
+                    let record = self.record();
+                    if let Some(handle) = record
+                        .iter()
+                        .find(|p| p.code == 5)
+                        .map(|p| p.value.trim().to_ascii_uppercase())
+                    {
+                        // 173, not the style's 170 (its content type).
+                        self.mleader_styles
+                            .insert(handle, value::<i64>(record, 173)?);
                     }
                 }
                 (0, "IMAGEDEF") => {
@@ -587,6 +606,9 @@ impl<'a, 'b> Reader<'a, 'b> {
         let read = entity::read(head.value, record, self.ordinal)?;
         self.warnings.extend(read.warnings);
         let mut entity = read.entity;
+        if let Some(groups) = read.line_type_groups {
+            self.line_type_groups.insert(entity.common().id, groups);
+        }
         if read.attribs_follow {
             let mut attribs = Vec::new();
             while self.at("ATTRIB") {
@@ -742,6 +764,8 @@ impl<'a, 'b> Reader<'a, 'b> {
             mlinestyles,
             mut layouts,
             image_definitions,
+            mleader_styles,
+            line_type_groups,
             acis_bodies,
             mut blocks,
             warnings,
@@ -782,6 +806,7 @@ impl<'a, 'b> Reader<'a, 'b> {
         for block in blocks.values_mut() {
             for e in &mut block.entities {
                 read_acis_body(e, &acis_bodies);
+                settle_line_type(e, &line_type_groups, &mleader_styles);
                 resolve_names(e, &names);
                 resolve_entity_refs(e, &ids);
             }
@@ -911,6 +936,28 @@ fn read_acis_body(e: &mut Entity, bodies: &BTreeMap<EntityId, Vec<u8>>) {
 fn is_space(name: &str) -> bool {
     let n = name.to_ascii_uppercase();
     n == MODEL_SPACE.to_ascii_uppercase() || n.starts_with(&PAPER_SPACE.to_ascii_uppercase())
+}
+
+/// A MULTILEADER's line type, from its groups and the style they name.
+fn settle_line_type(
+    e: &mut Entity,
+    groups: &BTreeMap<EntityId, entity::LineTypeGroups>,
+    styles: &BTreeMap<String, Option<i64>>,
+) {
+    let Entity::MultiLeader(m) = e else {
+        return;
+    };
+    let Some(g) = groups.get(&m.common.id) else {
+        return;
+    };
+    let style_type = g
+        .style
+        .as_ref()
+        .and_then(|h| styles.get(h))
+        .copied()
+        .flatten();
+    m.line_type =
+        LeaderLineType::resolve(g.flags, g.entity_type, style_type, g.lines.iter().copied());
 }
 
 /// The names and handles the tables declare, which the entities' references
