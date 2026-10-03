@@ -756,6 +756,10 @@ impl<'a, 'b> Reader<'a, 'b> {
     /// model space by flag, and both are the one block -- named as the file
     /// first wrote it.
     fn block(&mut self, name: &str) -> &mut BlockRecord {
+        // The usual case -- the name as already kept -- allocates nothing.
+        if self.blocks.contains_key(name) {
+            return self.blocks.get_mut(name).expect("checked above");
+        }
         let key = self
             .block_spellings
             .entry(name.to_ascii_uppercase())
