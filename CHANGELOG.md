@@ -9,6 +9,9 @@ bumps the minor version.
 
 ### Added
 
+- The header's `$FINGERPRINTGUID` and `$VERSIONGUID` (group 2), as stated, into the model's
+  `header`.
+
 - A multileader's `line_type`, from its own override flags, type and style (the groups after
   its context data, not the like-numbered ones inside it), the MLEADERSTYLE objects' line
   type (173) and each leader line's own override (93 and 170 inside its block).

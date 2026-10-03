@@ -829,6 +829,8 @@ impl<'a, 'b> Reader<'a, 'b> {
         let variables = HeaderVariables {
             // Group 70 is 16-bit: a value outside it names no unit.
             insunits: header.int("INSUNITS").and_then(|v| u16::try_from(v).ok()),
+            fingerprintguid: header.text("FINGERPRINTGUID"),
+            versionguid: header.text("VERSIONGUID"),
         };
         let db = CadDatabase {
             entities,

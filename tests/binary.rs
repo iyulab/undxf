@@ -28,6 +28,12 @@ fn same(a: &serde_json::Value, b: &serde_json::Value, tol: f64, at: &str) {
     {
         return;
     }
+    // The binary file is a save of its own: it states the ASCII file's
+    // `$FINGERPRINTGUID` but another `$VERSIONGUID`.
+    if at == "example_2000.header.versionguid" {
+        assert_ne!(a, b, "{at}: the two saves state different identifiers");
+        return;
+    }
     match (a, b) {
         (Number(x), Number(y)) => {
             let (x, y) = (x.as_f64().unwrap(), y.as_f64().unwrap());

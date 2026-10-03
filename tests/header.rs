@@ -99,3 +99,23 @@ fn a_real_header_reads_with_its_values_as_written() {
         Some(-215.9295327147615)
     );
 }
+
+#[test]
+fn the_drawing_identifiers_are_kept_as_stated_and_none_when_unstated() {
+    let stated = TEXT.replace(
+        "  9\n$CLAYER\n",
+        "  9\n$FINGERPRINTGUID\n  2\n{6C96C536-CF21-D941-AC58-7362E8972727}\n  9\n$VERSIONGUID\n  2\n{767951EC-63F0-6146-B9D9-BB0EE2CB5AEF}\n  9\n$CLAYER\n",
+    );
+    let (db, _) = read_str_with_header(&stated).unwrap();
+    assert_eq!(
+        db.header.fingerprintguid.as_deref(),
+        Some("{6C96C536-CF21-D941-AC58-7362E8972727}")
+    );
+    assert_eq!(
+        db.header.versionguid.as_deref(),
+        Some("{767951EC-63F0-6146-B9D9-BB0EE2CB5AEF}")
+    );
+    let (db, _) = read_str_with_header(TEXT).unwrap();
+    assert_eq!(db.header.fingerprintguid, None);
+    assert_eq!(db.header.versionguid, None);
+}
