@@ -7,6 +7,13 @@ bumps the minor version.
 
 ## [Unreleased]
 
+### Fixed
+
+- A file that spells a space block in capitals (`*MODEL_SPACE`, as R13 and R14 files write it)
+  no longer reads into two blocks -- an empty one under the file's spelling and another holding
+  the ENTITIES section's entities. Block names are matched without regard to case, as the
+  format's symbol tables match them, and a block keeps the spelling the file first wrote.
+
 ### Added
 
 - The header's `$FINGERPRINTGUID` and `$VERSIONGUID` (group 2), as stated, into the model's

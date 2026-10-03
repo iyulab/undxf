@@ -571,6 +571,9 @@ impl<'a, 'b> Reader<'a, 'b> {
     }
 
     fn entities(&mut self) -> Result<(), ReadError> {
+        // The space blocks as the BLOCKS section spelled them, looked up once.
+        let model = self.block_key(MODEL_SPACE);
+        let paper = self.block_key(PAPER_SPACE);
         loop {
             if self.at("ENDSEC") {
                 self.next();
@@ -580,8 +583,8 @@ impl<'a, 'b> Reader<'a, 'b> {
                 Some(p) if p.code == 0 => {
                     let (entity, space) = self.group()?;
                     let name = match space {
-                        Space::Model => MODEL_SPACE,
-                        Space::Paper => PAPER_SPACE,
+                        Space::Model => &model,
+                        Space::Paper => &paper,
                     };
                     self.block(name).entities.push(entity);
                 }
@@ -740,14 +743,35 @@ impl<'a, 'b> Reader<'a, 'b> {
         Ok((entity, read.space))
     }
 
+    /// The block record of this name, made when there is none.
+    ///
+    /// A block's name is matched without regard to case, as the format's
+    /// symbol tables match names: an R13 or R14 file defines `*MODEL_SPACE`
+    /// in its BLOCKS section while its ENTITIES section places entities in
+    /// model space by flag, and both are the one block -- named as the file
+    /// first wrote it.
     fn block(&mut self, name: &str) -> &mut BlockRecord {
+        let key = self.block_key(name);
         self.blocks
-            .entry(name.to_string())
+            .entry(key.clone())
             .or_insert_with(|| BlockRecord {
-                name: name.to_string(),
+                name: key,
                 entities: Vec::new(),
                 base_point: Default::default(),
             })
+    }
+
+    /// The name a block of this name is kept under: the spelling already
+    /// read, whatever its case, or this one.
+    fn block_key(&self, name: &str) -> String {
+        if self.blocks.contains_key(name) {
+            return name.to_string();
+        }
+        self.blocks
+            .keys()
+            .find(|k| k.eq_ignore_ascii_case(name))
+            .cloned()
+            .unwrap_or_else(|| name.to_string())
     }
 
     /// Resolves layer and block names against the tables and entity
