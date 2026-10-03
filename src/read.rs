@@ -90,6 +90,7 @@ fn read_text(text: &str, warnings: Vec<String>) -> Result<(CadDatabase, Header),
         line_type_groups: BTreeMap::new(),
         acis_bodies: BTreeMap::new(),
         blocks: BTreeMap::new(),
+        block_spellings: BTreeMap::new(),
         warnings,
         version: None,
         header: Header::default(),
@@ -129,6 +130,10 @@ struct Reader<'a, 'b> {
     /// ACDSDATA section, under the handle of the entity it belongs to.
     acis_bodies: BTreeMap<EntityId, Vec<u8>>,
     blocks: BTreeMap<String, BlockRecord>,
+    /// Each block's name in capitals, to the spelling it is kept under in
+    /// `blocks` -- so finding a name whatever its case is one lookup, not a
+    /// pass over every block read so far.
+    block_spellings: BTreeMap<String, String>,
     /// What the decoding reported, then what each entity reported, in the
     /// order they were read.
     warnings: Vec<String>,
@@ -751,7 +756,11 @@ impl<'a, 'b> Reader<'a, 'b> {
     /// model space by flag, and both are the one block -- named as the file
     /// first wrote it.
     fn block(&mut self, name: &str) -> &mut BlockRecord {
-        let key = self.block_key(name);
+        let key = self
+            .block_spellings
+            .entry(name.to_ascii_uppercase())
+            .or_insert_with(|| name.to_string())
+            .clone();
         self.blocks
             .entry(key.clone())
             .or_insert_with(|| BlockRecord {
@@ -764,12 +773,8 @@ impl<'a, 'b> Reader<'a, 'b> {
     /// The name a block of this name is kept under: the spelling already
     /// read, whatever its case, or this one.
     fn block_key(&self, name: &str) -> String {
-        if self.blocks.contains_key(name) {
-            return name.to_string();
-        }
-        self.blocks
-            .keys()
-            .find(|k| k.eq_ignore_ascii_case(name))
+        self.block_spellings
+            .get(&name.to_ascii_uppercase())
             .cloned()
             .unwrap_or_else(|| name.to_string())
     }
