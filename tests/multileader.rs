@@ -1,9 +1,9 @@
 //! A MULTILEADER's leader roots: each `LEADER{}` block of its context data,
 //! with the points inside each of its `LEADER_LINE{}` blocks, its last
 //! leader line point and its dogleg -- and nothing else the record says
-//! with the same group codes.
+//! with the same group codes; and the text it points out.
 
-use uncad_model::model::Entity;
+use uncad_model::model::{Entity, MultiLeaderContent};
 use undxf::read_str;
 
 #[test]
@@ -99,4 +99,43 @@ fn a_multileader_reads_the_points_of_each_leader_line_block() {
     assert_eq!(second.lines.len(), 1);
     assert_eq!(second.last_point, None);
     assert_eq!(second.dogleg, None);
+}
+
+/// The line spacing of a multileader's text is its context data's 45, and
+/// 1 -- the default spacing -- when the record leaves the group out.
+#[test]
+fn a_multileader_text_keeps_its_line_spacing() {
+    let read = |spacing: Option<&str>| {
+        let mut groups: Vec<(i32, &str)> = vec![
+            (100, "AcDbMLeader"),
+            (300, "CONTEXT_DATA{"),
+            (41, "2.5"),
+            (290, "1"),
+            (304, r"A\PB"),
+            (12, "3"),
+            (22, "4"),
+            (32, "0"),
+        ];
+        if let Some(spacing) = spacing {
+            groups.push((45, spacing));
+        }
+        groups.extend([(171, "1"), (296, "0"), (301, "}")]);
+        let mut text = String::from(
+            "  0\nSECTION\n  2\nENTITIES\n  0\nMULTILEADER\n  5\n2A\n100\nAcDbEntity\n  8\n0\n",
+        );
+        for (code, value) in groups {
+            text.push_str(&format!("{code:>3}\n{value}\n"));
+        }
+        text.push_str("  0\nENDSEC\n  0\nEOF\n");
+        let db = read_str(&text).unwrap();
+        let Entity::MultiLeader(m) = &db.entities[0] else {
+            panic!("a MULTILEADER, got {:?}", db.entities[0]);
+        };
+        match &m.content {
+            Some(MultiLeaderContent::MText(t)) => t.line_spacing_factor,
+            other => panic!("a text, got {other:?}"),
+        }
+    };
+    assert_eq!(read(Some("1.5")), 1.5);
+    assert_eq!(read(None), 1.0);
 }
