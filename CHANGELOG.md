@@ -7,6 +7,8 @@ bumps the minor version.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-04
+
 ### Added
 
 - A MULTILEADER's content: its text (304, placed by 12 at the 171 attachment point, 41 high with
@@ -14,6 +16,16 @@ bumps the minor version.
   scaled by 16) -- read from the record's context data outside its leader blocks. A content the
   record says it has but does not place is not guessed. The text style and the block resolve from
   their records' handles to their names.
+- The header's `$FINGERPRINTGUID` and `$VERSIONGUID` (group 2), as stated, into the model's
+  `header`.
+- A multileader's `line_type`, from its own override flags, type and style (the groups after
+  its context data, not the like-numbered ones inside it), the MLEADERSTYLE objects' line
+  type (173) and each leader line's own override (93 and 170 inside its block).
+
+### Changed
+
+- Built on `uncad-model` 0.4.0 (a multileader's line type and content; the header's drawing
+  identifiers).
 
 ### Fixed
 
@@ -21,16 +33,6 @@ bumps the minor version.
   no longer reads into two blocks -- an empty one under the file's spelling and another holding
   the ENTITIES section's entities. Block names are matched without regard to case, as the
   format's symbol tables match them, and a block keeps the spelling the file first wrote.
-
-### Added
-
-- The header's `$FINGERPRINTGUID` and `$VERSIONGUID` (group 2), as stated, into the model's
-  `header`.
-
-- A multileader's `line_type`, from its own override flags, type and style (the groups after
-  its context data, not the like-numbered ones inside it), the MLEADERSTYLE objects' line
-  type (173) and each leader line's own override (93 and 170 inside its block).
-
 
 ## [0.2.0] - 2026-10-02
 
