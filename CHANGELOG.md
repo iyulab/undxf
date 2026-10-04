@@ -7,6 +7,14 @@ bumps the minor version.
 
 ## [Unreleased]
 
+### Added
+
+- A MULTILEADER's content: its text (304, placed by 12 at the 171 attachment point, 41 high, in
+  the style its 340 handle names) or its block (341, placed by 15, scaled by 16) -- read from the
+  record's context data outside its leader blocks. A content the record says it has but does not
+  place is not guessed. The text style and the block resolve from their records' handles to
+  their names.
+
 ### Fixed
 
 - A file that spells a space block in capitals (`*MODEL_SPACE`, as R13 and R14 files write it)

@@ -4,16 +4,17 @@
 
 use crate::decode::string;
 use crate::pairs::{Pair, ReadError};
+use std::collections::BTreeMap;
 use uncad_model::model::{
     AcadTableEntity, ArcEntity, AttdefEntity, AttribEntity, AttributeFlags, CircleEntity,
     Confidence, DimensionEntity, DimensionKind, DimensionPoints, Dogleg, EllipseEntity, Entity,
     EntityCommon, EntityId, EntityLinetype, Face3DEntity, HatchEntity, HorizontalJustification,
     ImageEntity, InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LeaderRoot, LightEntity,
     LightType, LineEntity, LwPolylineEntity, MLineEntity, MLineVertex, MTextAttachment,
-    MTextEntity, MultiLeaderEntity, OrdinateAxis, Origin, OverrideValue, Point2D, Point3D,
-    PointEntity, PolylineVertex, RayEntity, Ref, Solid3DEntity, SolidEntity, SplineEntity,
-    StyleOverride, TextEntity, TextOverride, ToleranceEntity, VerticalJustification,
-    ViewportEntity, ViewportView, WipeoutEntity,
+    MTextEntity, MultiLeaderBlock, MultiLeaderContent, MultiLeaderEntity, MultiLeaderText,
+    OrdinateAxis, Origin, OverrideValue, Point2D, Point3D, PointEntity, PolylineVertex, RayEntity,
+    Ref, Solid3DEntity, SolidEntity, SplineEntity, StyleOverride, TextEntity, TextOverride,
+    ToleranceEntity, VerticalJustification, ViewportEntity, ViewportView, WipeoutEntity,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -791,18 +792,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
             extents_width: num(pairs, 42)?.filter(|w| *w != 0.0),
             extents_height: num(pairs, 43)?.filter(|h| *h != 0.0),
             style_name: name_ref(text(pairs, 7)),
-            attachment: match int(pairs, 71)? {
-                Some(1) => Some(MTextAttachment::TopLeft),
-                Some(2) => Some(MTextAttachment::TopCenter),
-                Some(3) => Some(MTextAttachment::TopRight),
-                Some(4) => Some(MTextAttachment::MiddleLeft),
-                Some(5) => Some(MTextAttachment::MiddleCenter),
-                Some(6) => Some(MTextAttachment::MiddleRight),
-                Some(7) => Some(MTextAttachment::BottomLeft),
-                Some(8) => Some(MTextAttachment::BottomCenter),
-                Some(9) => Some(MTextAttachment::BottomRight),
-                _ => None,
-            },
+            attachment: int(pairs, 71)?.and_then(MTextAttachment::from_code),
         }),
         "SPLINE" => {
             // Bits 1 closed, 2 periodic. No group 70 is a record that does
@@ -823,7 +813,8 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 end_tangent: optional_point3(pairs, 13)?,
             })
         }
-        // The leader roots only, each with the lines that run to it.
+        // The leader roots, each with the lines that run to it, and what
+        // they point out.
         "MULTILEADER" => {
             line_type_groups = Some(multileader_line_type_groups(pairs)?);
             Entity::MultiLeader(MultiLeaderEntity {
@@ -831,6 +822,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 leaders: multileader_leaders(pairs)?,
                 // Settled by the reader once the styles are read.
                 line_type: None,
+                content: multileader_content(pairs)?,
             })
         }
         // A light: where it is, what it aims at (11 -- a point light states
@@ -1235,6 +1227,104 @@ fn multileader_leaders(pairs: &[Pair<'_>]) -> Result<Vec<LeaderRoot>, ReadError>
         }
     }
     Ok(leaders)
+}
+
+/// What a MULTILEADER points out: the groups of its context data
+/// (`CONTEXT_DATA{` ... `}`, groups 300 and 301) outside its `LEADER{`
+/// blocks -- a text when 290 is 1 (304 the text, 12 where it is, 41 its
+/// height; 340 its style and 11 · 13 · 42 · 43 · 171 its plane, direction,
+/// rotation, width and attachment), a block when 296 is 1 (341 the block
+/// record, 15 where it goes; 14 · 16 · 46 its plane, scale and rotation).
+/// The text style and the block are left as the handles the file names,
+/// for the reader to resolve. A content the record says it has but does
+/// not place -- no text, location or height for a text, no block or
+/// location for a block -- is not guessed: `None`. Groups the format
+/// writes only when they differ from their defaults take those: content
+/// scale 1, direction +X, plane normal +Z, rotation 0, width 0, block
+/// scale 1.
+fn multileader_content(pairs: &[Pair<'_>]) -> Result<Option<MultiLeaderContent>, ReadError> {
+    let point_at = |i: usize, x: i32| -> Result<Point3D, ReadError> {
+        let at = |offset: usize, code: i32| {
+            pairs
+                .get(i + offset)
+                .filter(|q| q.code == code)
+                .map(number)
+                .transpose()
+        };
+        Ok(Point3D {
+            x: number(&pairs[i])?,
+            y: at(1, x + 10)?.unwrap_or(0.0),
+            z: at(2, x + 20)?.unwrap_or(0.0),
+        })
+    };
+    let mut in_context = false;
+    let mut in_root = false;
+    let mut found: BTreeMap<i32, usize> = BTreeMap::new();
+    for (i, p) in pairs.iter().enumerate() {
+        let value = p.value.trim();
+        match (p.code, value) {
+            (300, "CONTEXT_DATA{") => in_context = true,
+            (301, "}") => in_context = false,
+            (302, "LEADER{") => in_root = true,
+            (303, "}") => in_root = false,
+            (code, _) if in_context && !in_root => {
+                found.entry(code).or_insert(i);
+            }
+            _ => {}
+        }
+    }
+    let at = |code: i32| found.get(&code).map(|&i| &pairs[i]);
+    let num_at = |code: i32| at(code).map(number).transpose();
+    let point = |code: i32| found.get(&code).map(|&i| point_at(i, code)).transpose();
+    let handle = |code: i32| at(code).map(|p| Ref::Unresolved(p.value.trim().to_ascii_uppercase()));
+    let set =
+        |code: i32| -> Result<bool, ReadError> { Ok(num_at(code)?.is_some_and(|v| v != 0.0)) };
+    const X: Point3D = Point3D {
+        x: 1.0,
+        y: 0.0,
+        z: 0.0,
+    };
+    const Z: Point3D = Point3D {
+        x: 0.0,
+        y: 0.0,
+        z: 1.0,
+    };
+    if set(290)? {
+        let (Some(text), Some(location), Some(height)) = (at(304), point(12)?, num_at(41)?) else {
+            return Ok(None);
+        };
+        return Ok(Some(MultiLeaderContent::MText(MultiLeaderText {
+            text: string(text.value),
+            style_name: handle(340).unwrap_or(Ref::Absent),
+            location,
+            direction: point(13)?.unwrap_or(X),
+            extrusion: point(11)?.unwrap_or(Z),
+            height,
+            rotation: num_at(42)?.unwrap_or(0.0),
+            width: num_at(43)?.unwrap_or(0.0),
+            scale: num_at(40)?.unwrap_or(1.0),
+            attachment: num_at(171)?
+                .map(|v| v as i64)
+                .and_then(MTextAttachment::from_code),
+        })));
+    }
+    if set(296)? {
+        let (Some(block_name), Some(location)) = (handle(341), point(15)?) else {
+            return Ok(None);
+        };
+        return Ok(Some(MultiLeaderContent::Block(MultiLeaderBlock {
+            block_name,
+            location,
+            scale: point(16)?.unwrap_or(Point3D {
+                x: 1.0,
+                y: 1.0,
+                z: 1.0,
+            }),
+            rotation: num_at(46)?.unwrap_or(0.0),
+            extrusion: point(14)?.unwrap_or(Z),
+        })));
+    }
+    Ok(None)
 }
 
 fn optional_point3(pairs: &[Pair<'_>], x: i32) -> Result<Option<Point3D>, ReadError> {

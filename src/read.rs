@@ -7,8 +7,8 @@ use crate::header::{Header, HeaderGroup};
 use crate::pairs::{pairs, Pair, ReadError};
 use std::collections::{BTreeMap, BTreeSet};
 use uncad_model::model::{
-    Entity, EntityCommon, EntityId, EntityLinetype, LeaderLineType, LwPolylineEntity, Point2D,
-    Point3D, PolylineEntity, PolylineVertex, Ref, Solid3DEntity,
+    Entity, EntityCommon, EntityId, EntityLinetype, LeaderLineType, LwPolylineEntity,
+    MultiLeaderContent, Point2D, Point3D, PolylineEntity, PolylineVertex, Ref, Solid3DEntity,
 };
 use uncad_model::tables::{
     AngularUnitFormat, ArcSymbol, BlockRecord, DimStyleRecord, FractionFormat, ImageDefinition,
@@ -81,6 +81,7 @@ fn read_text(text: &str, warnings: Vec<String>) -> Result<(CadDatabase, Header),
         layer_handles: BTreeMap::new(),
         linetypes: BTreeSet::new(),
         text_styles: BTreeSet::new(),
+        text_style_handles: BTreeMap::new(),
         block_record_handles: BTreeMap::new(),
         dim_styles: BTreeMap::new(),
         mlinestyles: BTreeMap::new(),
@@ -112,6 +113,9 @@ struct Reader<'a, 'b> {
     linetypes: BTreeSet<String>,
     /// The STYLE table's names, which a text's style resolves against.
     text_styles: BTreeSet<String>,
+    /// A STYLE record's handle -> its name: how a multileader's text names
+    /// its style.
+    text_style_handles: BTreeMap<String, String>,
     /// A BLOCK_RECORD's handle -> its name: how a layout names its block.
     block_record_handles: BTreeMap<String, String>,
     dim_styles: BTreeMap<String, DimStyleRecord>,
@@ -420,6 +424,10 @@ impl<'a, 'b> Reader<'a, 'b> {
                             self.linetypes.insert(name);
                         }
                         "STYLE" => {
+                            if let Some(handle) = record.iter().find(|p| p.code == 5) {
+                                self.text_style_handles
+                                    .insert(handle.value.trim().to_ascii_uppercase(), name.clone());
+                            }
                             self.text_styles.insert(name);
                         }
                         _ => {
@@ -792,6 +800,7 @@ impl<'a, 'b> Reader<'a, 'b> {
             layer_handles,
             linetypes,
             text_styles,
+            text_style_handles,
             block_record_handles,
             dim_styles,
             mlinestyles,
@@ -820,6 +829,8 @@ impl<'a, 'b> Reader<'a, 'b> {
             dim_styles: &dim_styles,
             mlinestyles: &mlinestyles,
             text_styles: &text_styles,
+            text_style_handles: &text_style_handles,
+            block_record_handles: &block_record_handles,
             linetypes: &linetypes,
             image_definitions: &image_definitions,
             since_r2000: version.as_deref().is_some_and(|v| v >= "AC1015"),
@@ -1004,6 +1015,8 @@ struct Names<'n> {
     dim_styles: &'n BTreeMap<String, DimStyleRecord>,
     mlinestyles: &'n BTreeMap<String, Vec<f64>>,
     text_styles: &'n BTreeSet<String>,
+    text_style_handles: &'n BTreeMap<String, String>,
+    block_record_handles: &'n BTreeMap<String, String>,
     linetypes: &'n BTreeSet<String>,
     image_definitions: &'n BTreeMap<String, ImageDefinition>,
     since_r2000: bool,
@@ -1069,6 +1082,25 @@ fn resolve_names(e: &mut Entity, names: &Names<'_>) {
         Entity::Attrib(a) => resolve_text_style(&mut a.style_name, names.text_styles),
         Entity::Attdef(a) => resolve_text_style(&mut a.style_name, names.text_styles),
         Entity::MText(m) => resolve_text_style(&mut m.style_name, names.text_styles),
+        // A multileader names its text's style and its block by their
+        // records' handles: the style's name when the table declares the
+        // handle (resolved against the table's names like any text's), the
+        // block's like a layout's; the handle itself, unresolved, when the
+        // table does not declare it.
+        Entity::MultiLeader(m) => match &mut m.content {
+            Some(MultiLeaderContent::MText(t)) => {
+                if let Ref::Unresolved(handle) = &t.style_name {
+                    if let Some(name) = names.text_style_handles.get(handle.as_str()) {
+                        t.style_name = Ref::Unresolved(name.clone());
+                        resolve_text_style(&mut t.style_name, names.text_styles);
+                    }
+                }
+            }
+            Some(MultiLeaderContent::Block(b)) => {
+                resolve_block_record(&mut b.block_name, names.block_record_handles, names.blocks);
+            }
+            None => {}
+        },
         // An image names its definition by the object's handle, and the
         // handle is the key the definition is kept under.
         Entity::Image(i) => resolve_name(&mut i.definition, |h| {
