@@ -7,6 +7,8 @@ bumps the minor version.
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-05
+
 ### Added
 
 - An ACAD_TABLE's grid: its column widths (142), and its rows (141 heights) with one cell per
@@ -16,6 +18,10 @@ bumps the minor version.
   list cannot reuse them. An empty text and no value read as the same empty cell. Counts that do
   not make a whole grid leave no grid and are reported as `TABLE_GRID`; a text continued over
   several groups or a value that is not a string is left unread and reported as `TABLE_CELL_TEXT`.
+
+### Changed
+
+- Built on `uncad-model` 0.5.0 (a table's grid).
 
 ### Fixed
 
