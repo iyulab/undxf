@@ -11,8 +11,8 @@
 | Files whose bytes are not UTF-8 | 4 (`2000/TS1`, `example_2000`, `example_r13`, `example_r14`) -- all declare `ANSI_1252` and decode through it with no diagnostic |
 | Reads with a diagnostic | 0 |
 | Top-level entities | 1,225 |
-| Entity types interpreted | LINE 49,345 · LWPOLYLINE 827 · ARC 812 · POINT 789 · INSERT 566 · MTEXT 308 · DIMENSION 294 (ARC_DIMENSION included) · SOLID 266 · ELLIPSE 201 · CIRCLE 185 · 3DFACE 182 · TEXT 116 · ATTDEF 77 · IMAGE 70 · POLYLINE (2D) 66 · VIEWPORT 64 · SPLINE 48 · REGION 36 · WIPEOUT 32 · ATTRIB 31 · HATCH 28 · POLYLINE (3D) 27 · MULTILEADER 24 · RAY 22 · LEADER 20 · TRACE 20 · MLINE 20 · 3DSOLID 20 · POLYLINE (polyface mesh) 18 · XLINE 18 · TOLERANCE 18 · ACAD_TABLE 16 · LIGHT 12 · POLYLINE (polygon mesh) 4 -- over top-level and block entities |
-| Kept as `UNKNOWN` | ACAD_PROXY_ENTITY 54 · SHAPE 16 · 3DLINE 6 · PDFUNDERLAY 6 · MESH 4 · OLE2FRAME 4 · and 2 each of five surface types, HELIX, SECTIONOBJECT and pre-R10 REPEAT/ENDREP |
+| Entity types interpreted | LINE 49,137 · ARC 782 · POINT 768 · LWPOLYLINE 717 · INSERT 392 · MTEXT 286 · SOLID 248 · ELLIPSE 188 · 3DFACE 157 · DIMENSION 156 (ARC_DIMENSION included) · CIRCLE 153 · TEXT 76 · ATTDEF 49 · IMAGE 35 · POLYLINE (2D) 35 · VIEWPORT 32 · ATTRIB 31 · SPLINE 30 · REGION 18 · HATCH 16 · WIPEOUT 16 · POLYLINE (3D) 14 · MULTILEADER 12 · RAY 11 · 3DSOLID 10 · LEADER 10 · MLINE 10 · TRACE 10 · POLYLINE (polyface mesh) 9 · TOLERANCE 9 · XLINE 9 · ACAD_TABLE 8 · LIGHT 6 · POLYLINE (polygon mesh) 2 -- over top-level and block entities, each entity once (what a space owns is also listed under its block record) |
+| Kept as `UNKNOWN` | ACAD_PROXY_ENTITY 27 · SHAPE 8 · 3DLINE 3 · PDFUNDERLAY 3 · MESH 2 · OLE2FRAME 2 · and 1 each of five surface types, HELIX, SECTIONOBJECT and pre-R10 REPEAT/ENDREP |
 
 An `UNKNOWN` entity keeps its reference ID, layer, colour and type name; a consumer sees that it is there and what it is called.
 

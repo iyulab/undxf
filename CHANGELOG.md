@@ -17,6 +17,11 @@ bumps the minor version.
   not make a whole grid leave no grid and are reported as `TABLE_GRID`; a text continued over
   several groups or a value that is not a string is left unread and reported as `TABLE_CELL_TEXT`.
 
+### Fixed
+
+- The corpus entity counts in CAVEATS counted what model and paper space own twice -- once at
+  the top level and once under the space's block record. Each entity is now counted once.
+
 ## [0.3.0] - 2026-10-04
 
 ### Added

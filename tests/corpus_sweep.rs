@@ -44,8 +44,8 @@ struct Sweep {
     /// Files whose read raised a diagnostic, with the diagnostics.
     diagnostics: Vec<(String, Vec<String>)>,
     entities: usize,
-    /// Entity type -> count, over top-level and block entities, for the
-    /// types this crate does not interpret.
+    /// Entity type -> count, over top-level and block entities, each
+    /// entity once (by ID), for the types this crate does not interpret.
     unknown: BTreeMap<String, usize>,
     /// Entity type -> count, for the types it does.
     known: BTreeMap<String, usize>,
@@ -94,7 +94,11 @@ fn corpus_sweep() {
                 }
                 s.entities += db.entities.len();
                 s.per_file.push((rel.clone(), db.entities.len()));
-                for e in db.all_entities() {
+                // What model and paper space own is listed both at the top
+                // level and under the space's block record; each entity is
+                // counted once, by its ID.
+                let mut seen = std::collections::BTreeSet::new();
+                for e in db.all_entities().filter(|e| seen.insert(e.common().id)) {
                     match e {
                         Entity::Unknown { type_name, .. } => {
                             *s.unknown.entry(type_name.clone()).or_default() += 1
@@ -140,50 +144,50 @@ fn corpus_sweep() {
         s.diagnostics
     );
     assert_eq!(s.entities, 1225);
-    assert_eq!(s.known.get("LINE"), Some(&49345));
-    assert_eq!(s.known.get("POLYLINE_2D"), Some(&66));
-    assert_eq!(s.known.get("POLYLINE_3D"), Some(&27));
-    assert_eq!(s.known.get("INSERT"), Some(&566));
+    assert_eq!(s.known.get("LINE"), Some(&49137));
+    assert_eq!(s.known.get("POLYLINE_2D"), Some(&35));
+    assert_eq!(s.known.get("POLYLINE_3D"), Some(&14));
+    assert_eq!(s.known.get("INSERT"), Some(&392));
     // Leaders read since this crate learned the entity, and multi-leaders
     // (their leader lines) since it learned that one.
-    assert_eq!(s.known.get("LEADER"), Some(&20));
+    assert_eq!(s.known.get("LEADER"), Some(&10));
     assert_eq!(s.unknown.get("LEADER"), None);
-    assert_eq!(s.known.get("MULTILEADER"), Some(&24));
+    assert_eq!(s.known.get("MULTILEADER"), Some(&12));
     assert_eq!(s.unknown.get("MULTILEADER"), None);
     // Lights and polyface meshes.
-    assert_eq!(s.known.get("LIGHT"), Some(&12));
-    assert_eq!(s.known.get("POLYLINE_PFACE"), Some(&18));
-    assert_eq!(s.known.get("MTEXT"), Some(&308));
+    assert_eq!(s.known.get("LIGHT"), Some(&6));
+    assert_eq!(s.known.get("POLYLINE_PFACE"), Some(&9));
+    assert_eq!(s.known.get("MTEXT"), Some(&286));
     assert_eq!(s.unknown.get("MTEXT"), None);
-    assert_eq!(s.known.get("VIEWPORT"), Some(&64));
-    assert_eq!(s.known.get("RAY"), Some(&22));
-    assert_eq!(s.known.get("XLINE"), Some(&18));
+    assert_eq!(s.known.get("VIEWPORT"), Some(&32));
+    assert_eq!(s.known.get("RAY"), Some(&11));
+    assert_eq!(s.known.get("XLINE"), Some(&9));
     for t in ["VIEWPORT", "RAY", "XLINE"] {
         assert_eq!(s.unknown.get(t), None, "{t}");
     }
     // Points and the planar and 3D faces, read since this crate learned them.
-    assert_eq!(s.known.get("POINT"), Some(&789));
-    assert_eq!(s.known.get("SOLID"), Some(&266));
-    assert_eq!(s.known.get("TRACE"), Some(&20));
-    assert_eq!(s.known.get("3DFACE"), Some(&182));
+    assert_eq!(s.known.get("POINT"), Some(&768));
+    assert_eq!(s.known.get("SOLID"), Some(&248));
+    assert_eq!(s.known.get("TRACE"), Some(&10));
+    assert_eq!(s.known.get("3DFACE"), Some(&157));
     // Read in order, without a structure diagnostic in the corpus.
-    assert_eq!(s.known.get("HATCH"), Some(&28));
+    assert_eq!(s.known.get("HATCH"), Some(&16));
     assert_eq!(s.unknown.get("HATCH"), None);
     // Feature control frames, wipeouts and multilines.
-    assert_eq!(s.known.get("TOLERANCE"), Some(&18));
-    assert_eq!(s.known.get("WIPEOUT"), Some(&32));
-    assert_eq!(s.known.get("MLINE"), Some(&20));
+    assert_eq!(s.known.get("TOLERANCE"), Some(&9));
+    assert_eq!(s.known.get("WIPEOUT"), Some(&16));
+    assert_eq!(s.known.get("MLINE"), Some(&10));
     // ACIS bodies: in the record up to R2010, in the ACDSDATA section from
     // R2013 -- every 3DSOLID and REGION reads as a solid.
-    assert_eq!(s.known.get("3DSOLID"), Some(&20));
-    assert_eq!(s.known.get("REGION"), Some(&36));
+    assert_eq!(s.known.get("3DSOLID"), Some(&10));
+    assert_eq!(s.known.get("REGION"), Some(&18));
     assert_eq!(s.unknown.get("3DSOLID"), None);
     assert_eq!(s.unknown.get("REGION"), None);
     // Raster images: five in each of the seven versions of one drawing,
     // counted at the top level and in the model space block alike.
-    assert_eq!(s.known.get("IMAGE"), Some(&70));
+    assert_eq!(s.known.get("IMAGE"), Some(&35));
     // Tables, as the block references they are.
-    assert_eq!(s.known.get("ACAD_TABLE"), Some(&16));
+    assert_eq!(s.known.get("ACAD_TABLE"), Some(&8));
     for t in ["TOLERANCE", "WIPEOUT", "MLINE", "IMAGE", "ACAD_TABLE"] {
         assert_eq!(s.unknown.get(t), None, "{t}");
     }
