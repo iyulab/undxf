@@ -13,8 +13,9 @@ use uncad_model::model::{
     LightType, LineEntity, LwPolylineEntity, MLineEntity, MLineVertex, MTextAttachment,
     MTextEntity, MultiLeaderBlock, MultiLeaderContent, MultiLeaderEntity, MultiLeaderText,
     OrdinateAxis, Origin, OverrideValue, Point2D, Point3D, PointEntity, PolylineVertex, RayEntity,
-    Ref, Solid3DEntity, SolidEntity, SplineEntity, StyleOverride, TextEntity, TextOverride,
-    ToleranceEntity, VerticalJustification, ViewportEntity, ViewportView, WipeoutEntity,
+    Ref, Solid3DEntity, SolidEntity, SplineEntity, StyleOverride, TableCell, TableCellKind,
+    TableGrid, TableRow, TextEntity, TextOverride, ToleranceEntity, VerticalJustification,
+    ViewportEntity, ViewportView, WipeoutEntity,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -626,6 +627,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                     z: num_or(reference, 43, 1.0)?,
                 },
                 rotation,
+                grid: table_grid(table, &mut warnings)?,
             })
         }
         "DIMENSION" | "ARC_DIMENSION" => {
@@ -915,6 +917,154 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
         attribs_follow,
         warnings,
     })
+}
+
+/// A table's grid from the pairs after its `AcDbTable` marker.
+///
+/// The table's own groups come first -- rows (91), columns (92), a height
+/// per row (141), a width per column (142) -- and then its cells, row by
+/// row, each one starting at its kind (171). From R2007 a cell carries its
+/// value as a `CELL_VALUE` list that reuses 90 to 94, so the table's 91 and
+/// 92 are read only before the first cell.
+///
+/// `None`, reported as `TABLE_GRID`, when the counts do not agree -- a
+/// partial grid would put cells in the wrong rows. `None` without a report
+/// when the record states no rows or columns at all.
+fn table_grid(
+    table: &[Pair<'_>],
+    warnings: &mut Vec<String>,
+) -> Result<Option<TableGrid>, ReadError> {
+    let first_cell = table
+        .iter()
+        .position(|p| p.code == 171)
+        .unwrap_or(table.len());
+    let (head, body) = table.split_at(first_cell);
+    let (Some(rows), Some(columns)) = (int(head, 91)?, int(head, 92)?) else {
+        return Ok(None);
+    };
+    let heights = head
+        .iter()
+        .filter(|p| p.code == 141)
+        .map(number)
+        .collect::<Result<Vec<_>, _>>()?;
+    let column_widths = head
+        .iter()
+        .filter(|p| p.code == 142)
+        .map(number)
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut starts: Vec<usize> = body
+        .iter()
+        .enumerate()
+        .filter(|(_, p)| p.code == 171)
+        .map(|(i, _)| i)
+        .collect();
+    starts.push(body.len());
+    let cells: Vec<&[Pair<'_>]> = starts.windows(2).map(|w| &body[w[0]..w[1]]).collect();
+    let whole = usize::try_from(rows).ok() == Some(heights.len())
+        && usize::try_from(columns).ok() == Some(column_widths.len())
+        && cells.len() == heights.len() * column_widths.len();
+    if !whole {
+        warnings.push(format!(
+            "TABLE_GRID: an ACAD_TABLE states {rows} rows and {columns} columns (groups 91 and 92)              but {} row heights, {} column widths and {} cells; its cells are not read",
+            heights.len(),
+            column_widths.len(),
+            cells.len()
+        ));
+        return Ok(None);
+    }
+    let mut cells = cells.into_iter();
+    let mut grid_rows = Vec::with_capacity(heights.len());
+    for (row, height) in heights.into_iter().enumerate() {
+        let mut row_cells = Vec::with_capacity(column_widths.len());
+        for column in 0..column_widths.len() {
+            let pairs = cells.next().expect("the counts were checked");
+            let Some(cell) = table_cell(pairs, row, column, warnings)? else {
+                return Ok(None);
+            };
+            row_cells.push(cell);
+        }
+        grid_rows.push(TableRow {
+            height,
+            cells: row_cells,
+        });
+    }
+    Ok(Some(TableGrid {
+        column_widths,
+        rows: grid_rows,
+    }))
+}
+
+/// One cell, from its kind (171) up to the next cell.
+///
+/// The text is the cell's first group 1, written either directly in the
+/// cell (to R2004) or inside its `CELL_VALUE` list (from R2007), where 90
+/// says the value's kind: 4 a string, 0 no value. An empty string and no
+/// value are the same empty cell and both read as no text. A value of
+/// another kind, or a text continued over several groups (2, 3, 303), is
+/// left unread and reported as `TABLE_CELL_TEXT`.
+///
+/// `None`, reported as `TABLE_GRID`, when a span is not a count.
+fn table_cell(
+    pairs: &[Pair<'_>],
+    row: usize,
+    column: usize,
+    warnings: &mut Vec<String>,
+) -> Result<Option<TableCell>, ReadError> {
+    let kind = match int(pairs, 171)? {
+        Some(1) => Some(TableCellKind::Text),
+        Some(2) => Some(TableCellKind::Block),
+        _ => None,
+    };
+    let span = |code: i32| -> Result<Option<u32>, ReadError> {
+        Ok(match int(pairs, code)? {
+            None => Some(1),
+            Some(n) => u32::try_from(n).ok(),
+        })
+    };
+    let (Some(span_columns), Some(span_rows)) = (span(175)?, span(176)?) else {
+        warnings.push(format!(
+            "TABLE_GRID: an ACAD_TABLE cell (row {row}, column {column}) states a span              (groups 175 and 176) that is not a count; its cells are not read"
+        ));
+        return Ok(None);
+    };
+    let unread = |why: String| {
+        format!("TABLE_CELL_TEXT: an ACAD_TABLE cell (row {row}, column {column}) {why}; its text is not read")
+    };
+    let text = if kind == Some(TableCellKind::Block) {
+        None
+    } else if pairs.iter().any(|p| matches!(p.code, 2 | 3 | 303)) {
+        warnings.push(unread(
+            "continues its text over several groups (2, 3 or 303)".to_string(),
+        ));
+        None
+    } else {
+        let value = match pairs
+            .iter()
+            .position(|p| p.code == 301 && p.value.trim() == "CELL_VALUE")
+        {
+            None => text(pairs, 1),
+            Some(at) => {
+                let value = &pairs[at..];
+                match int(value, 90)? {
+                    Some(0) => None,
+                    Some(4) => text(value, 1),
+                    other => {
+                        let kind = other.map_or("no".to_string(), |k| k.to_string());
+                        warnings.push(unread(format!("holds a value of kind {kind} (group 90)")));
+                        None
+                    }
+                }
+            }
+        };
+        value.filter(|v| !v.is_empty()).map(string)
+    };
+    Ok(Some(TableCell {
+        kind,
+        text,
+        covered: int(pairs, 173)?.is_some_and(|v| v != 0),
+        span_columns,
+        span_rows,
+    }))
 }
 
 /// What the dimension measures, from the three places the format states it,

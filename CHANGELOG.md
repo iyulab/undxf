@@ -7,6 +7,16 @@ bumps the minor version.
 
 ## [Unreleased]
 
+### Added
+
+- An ACAD_TABLE's grid: its column widths (142), and its rows (141 heights) with one cell per
+  column -- the cell's kind (171), whether another cell's span covers it (173), its span (175,
+  176) and its text, from group 1 in the cell (to R2004) or in its `CELL_VALUE` list (from R2007).
+  The table's row and column counts (91, 92) are read only before its first cell, where a value
+  list cannot reuse them. An empty text and no value read as the same empty cell. Counts that do
+  not make a whole grid leave no grid and are reported as `TABLE_GRID`; a text continued over
+  several groups or a value that is not a string is left unread and reported as `TABLE_CELL_TEXT`.
+
 ## [0.3.0] - 2026-10-04
 
 ### Added
