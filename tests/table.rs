@@ -1,6 +1,6 @@
 //! ACAD_TABLE: the block reference it is, and its grid of cells.
 
-use uncad_model::model::{AcadTableEntity, Entity, Point3D, Ref, TableCellKind};
+use uncad_model::model::{AcadTableEntity, Entity, Point3D, Ref, TableCellKind, TableFlow};
 use undxf::read_str;
 
 /// A cell as R2000 writes it: kind 1 (text), not covered, spanning
@@ -279,4 +279,57 @@ fn a_value_that_is_not_a_string_is_reported_and_left_unread() {
     assert_eq!(t.grid.expect("the grid stands").rows[0].cells[0].text, None);
     assert_eq!(warnings.len(), 1, "{warnings:?}");
     assert!(warnings[0].starts_with("TABLE_CELL_TEXT:"), "{warnings:?}");
+}
+
+/// The 2 × 3 table with its own flow direction (group 70) when `own` is
+/// given, and an OBJECTS section holding the TABLESTYLE it points at
+/// (handle 29B) with flow `style` when that is given.
+fn flowing(own: Option<&str>, style: Option<&str>) -> (AcadTableEntity, Vec<String>) {
+    let mut text = drawing(("1", "0"), true, 2, 3, &cell_r2000("").repeat(6));
+    if let Some(own) = own {
+        text = text.replacen(" 92\n3\n", &format!(" 92\n3\n 93\n0\n 70\n{own}\n"), 1);
+    }
+    if let Some(style) = style {
+        text = text.replacen(
+            "  0\nEOF\n",
+            &format!(
+                "  0\nSECTION\n  2\nOBJECTS\n  0\nTABLESTYLE\n  5\n29B\n100\nAcDbTableStyle\n  3\nStandard\n 70\n{style}\n 71\n0\n  0\nENDSEC\n  0\nEOF\n"
+            ),
+            1,
+        );
+    }
+    read(&text)
+}
+
+#[test]
+fn a_table_that_states_no_flow_takes_its_styles() {
+    let (t, warnings) = flowing(None, Some("1"));
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(t.flow, Some(TableFlow::Up));
+    assert_eq!(flowing(None, Some("0")).0.flow, Some(TableFlow::Down));
+}
+
+#[test]
+fn a_tables_own_flow_overrides_its_styles() {
+    let (t, warnings) = flowing(Some("0"), Some("1"));
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(t.flow, Some(TableFlow::Down));
+}
+
+#[test]
+fn a_flow_nobody_states_is_not_known() {
+    // The style it points at is not in the drawing.
+    assert_eq!(flowing(None, None).0.flow, None);
+    // The style states a code the format does not define.
+    assert_eq!(flowing(None, Some("7")).0.flow, None);
+}
+
+#[test]
+fn a_flow_code_the_format_does_not_define_is_not_read_and_said_so() {
+    let (t, warnings) = flowing(Some("5"), Some("0"));
+    assert_eq!(t.flow, None);
+    assert!(
+        warnings.iter().any(|w| w.starts_with("TABLE_FLOW")),
+        "{warnings:?}"
+    );
 }

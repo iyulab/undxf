@@ -14,8 +14,8 @@ use uncad_model::model::{
     MTextEntity, MultiLeaderBlock, MultiLeaderContent, MultiLeaderEntity, MultiLeaderText,
     OrdinateAxis, Origin, OverrideValue, Point2D, Point3D, PointEntity, PolylineVertex, RayEntity,
     Ref, Solid3DEntity, SolidEntity, SplineEntity, StyleOverride, TableCell, TableCellKind,
-    TableGrid, TableRow, TextEntity, TextOverride, ToleranceEntity, VerticalJustification,
-    ViewportEntity, ViewportView, WipeoutEntity,
+    TableFlow, TableGrid, TableRow, TextEntity, TextOverride, ToleranceEntity,
+    VerticalJustification, ViewportEntity, ViewportView, WipeoutEntity,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -40,6 +40,11 @@ pub struct Read {
     /// [`line_type`](uncad_model::model::MultiLeaderEntity::line_type) once
     /// the style it names is known; `None` for every other type.
     pub line_type_groups: Option<LineTypeGroups>,
+    /// An ACAD_TABLE that states no flow direction of its own: the handle
+    /// (upper-case) of the TABLESTYLE it points at (DXF 342), whose flow
+    /// settles the table's [`flow`](uncad_model::model::AcadTableEntity::flow)
+    /// once the styles are read. `None` for every other entity.
+    pub table_style: Option<String>,
     /// `true` for an INSERT whose attributes follow (DXF 66).
     pub attribs_follow: bool,
     /// What this reader had to substitute for something the file did not
@@ -414,6 +419,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
     };
     let mut attribs_follow = false;
     let mut line_type_groups = None;
+    let mut table_style = None;
     let mut warnings = missing_required_groups(type_name, pairs);
     let entity = match type_name {
         "LINE" => Entity::Line(LineEntity {
@@ -617,6 +623,28 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 Some(d) if d.x != 0.0 || d.y != 0.0 => d.y.atan2(d.x),
                 _ => 0.0,
             };
+            // The table's own flow direction is an override among its
+            // table-level groups, which come before the row heights (141);
+            // without one, the style it points at (342) says.
+            let table_level = &table[..table
+                .iter()
+                .position(|p| p.code == 141)
+                .unwrap_or(table.len())];
+            let flow = match int(table_level, 70)? {
+                Some(code) => {
+                    let flow = TableFlow::from_code(code);
+                    if flow.is_none() {
+                        warnings.push(format!(
+                            "TABLE_FLOW: an ACAD_TABLE states a flow direction (group 70) of {code}, which the format does not define; its flow is not read"
+                        ));
+                    }
+                    flow
+                }
+                None => {
+                    table_style = text(table, 342).map(|h| h.trim().to_ascii_uppercase());
+                    None
+                }
+            };
             Entity::AcadTable(AcadTableEntity {
                 common,
                 block_name: name_ref(text(reference, 2)),
@@ -628,6 +656,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
                 },
                 rotation,
                 grid: table_grid(table, &mut warnings)?,
+                flow,
             })
         }
         "DIMENSION" | "ARC_DIMENSION" => {
@@ -914,6 +943,7 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
         entity,
         space,
         line_type_groups,
+        table_style,
         attribs_follow,
         warnings,
     })

@@ -7,6 +7,13 @@ bumps the minor version.
 
 ## [Unreleased]
 
+### Added
+
+- A table's `flow`: its own flow direction (group 70 among its table-level groups) when it states
+  one, otherwise the flow of the TABLESTYLE it points at (342), read from the OBJECTS section. A
+  code the format does not define is not read and is reported (`TABLE_FLOW`); a style that is not
+  in the drawing, or states none, leaves it `None`.
+
 ## [0.4.0] - 2026-10-05
 
 ### Added

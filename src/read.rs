@@ -9,6 +9,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use uncad_model::model::{
     Entity, EntityCommon, EntityId, EntityLinetype, LeaderLineType, LwPolylineEntity,
     MultiLeaderContent, Point2D, Point3D, PolylineEntity, PolylineVertex, Ref, Solid3DEntity,
+    TableFlow,
 };
 use uncad_model::tables::{
     AngularUnitFormat, ArcSymbol, BlockRecord, DimStyleRecord, FractionFormat, ImageDefinition,
@@ -89,6 +90,8 @@ fn read_text(text: &str, warnings: Vec<String>) -> Result<(CadDatabase, Header),
         image_definitions: BTreeMap::new(),
         mleader_styles: BTreeMap::new(),
         line_type_groups: BTreeMap::new(),
+        table_styles: BTreeMap::new(),
+        table_style_refs: BTreeMap::new(),
         acis_bodies: BTreeMap::new(),
         blocks: BTreeMap::new(),
         block_spellings: BTreeMap::new(),
@@ -130,6 +133,12 @@ struct Reader<'a, 'b> {
     mleader_styles: BTreeMap<String, Option<i64>>,
     /// A MULTILEADER's line-type groups, until the styles are read.
     line_type_groups: BTreeMap<EntityId, entity::LineTypeGroups>,
+    /// TABLESTYLE handle (upper-case hex) -> its flow direction (70), if it
+    /// states one the format defines.
+    table_styles: BTreeMap<String, Option<TableFlow>>,
+    /// A table that states no flow of its own -> the TABLESTYLE it points
+    /// at, until the styles are read.
+    table_style_refs: BTreeMap<EntityId, String>,
     /// From R2013: a 3DSOLID's or a REGION's ACIS body (SAB bytes) from the
     /// ACDSDATA section, under the handle of the entity it belongs to.
     acis_bodies: BTreeMap<EntityId, Vec<u8>>,
@@ -337,6 +346,17 @@ impl<'a, 'b> Reader<'a, 'b> {
                         // 173, not the style's 170 (its content type).
                         self.mleader_styles
                             .insert(handle, value::<i64>(record, 173)?);
+                    }
+                }
+                (0, "TABLESTYLE") => {
+                    let record = self.record();
+                    if let Some(handle) = record
+                        .iter()
+                        .find(|p| p.code == 5)
+                        .map(|p| p.value.trim().to_ascii_uppercase())
+                    {
+                        let flow = value::<i64>(record, 70)?.and_then(TableFlow::from_code);
+                        self.table_styles.insert(handle, flow);
                     }
                 }
                 (0, "IMAGEDEF") => {
@@ -625,6 +645,9 @@ impl<'a, 'b> Reader<'a, 'b> {
         if let Some(groups) = read.line_type_groups {
             self.line_type_groups.insert(entity.common().id, groups);
         }
+        if let Some(style) = read.table_style {
+            self.table_style_refs.insert(entity.common().id, style);
+        }
         if read.attribs_follow {
             let mut attribs = Vec::new();
             while self.at("ATTRIB") {
@@ -808,6 +831,8 @@ impl<'a, 'b> Reader<'a, 'b> {
             image_definitions,
             mleader_styles,
             line_type_groups,
+            table_styles,
+            table_style_refs,
             acis_bodies,
             mut blocks,
             warnings,
@@ -851,6 +876,7 @@ impl<'a, 'b> Reader<'a, 'b> {
             for e in &mut block.entities {
                 read_acis_body(e, &acis_bodies);
                 settle_line_type(e, &line_type_groups, &mleader_styles);
+                settle_table_flow(e, &table_style_refs, &table_styles);
                 resolve_names(e, &names);
                 resolve_entity_refs(e, &ids);
             }
@@ -1004,6 +1030,21 @@ fn settle_line_type(
         .flatten();
     m.line_type =
         LeaderLineType::resolve(g.flags, g.entity_type, style_type, g.lines.iter().copied());
+}
+
+/// A table that states no flow of its own takes its style's -- unknown when
+/// the style it points at is not in the drawing or states none.
+fn settle_table_flow(
+    e: &mut Entity,
+    refs: &BTreeMap<EntityId, String>,
+    styles: &BTreeMap<String, Option<TableFlow>>,
+) {
+    let Entity::AcadTable(t) = e else {
+        return;
+    };
+    if let Some(style) = refs.get(&t.common.id) {
+        t.flow = styles.get(style).copied().flatten();
+    }
 }
 
 /// The names and handles the tables declare, which the entities' references
