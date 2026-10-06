@@ -7,11 +7,17 @@ bumps the minor version.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-07
+
 ### Added
 
 - A multileader's `arrow_size`: its context data's arrowhead size (140, outside its leader roots),
   or the size a line states for itself (40 in its `LEADER_LINE{` block) when the line's override
   flags (93) set bit 0x10; `None` when the lines come out with different sizes.
+
+### Changed
+
+- Built on `uncad-model` 0.7.0.
 
 ## [0.5.0] - 2026-10-07
 
