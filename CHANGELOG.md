@@ -7,6 +7,12 @@ bumps the minor version.
 
 ## [Unreleased]
 
+### Added
+
+- A multileader's `arrow_size`: its context data's arrowhead size (140, outside its leader roots),
+  or the size a line states for itself (40 in its `LEADER_LINE{` block) when the line's override
+  flags (93) set bit 0x10; `None` when the lines come out with different sizes.
+
 ## [0.5.0] - 2026-10-07
 
 ### Added

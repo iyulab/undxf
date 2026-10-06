@@ -366,7 +366,12 @@ pub struct LineTypeGroups {
     pub lines: Vec<(Option<u32>, Option<i64>)>,
 }
 
-fn multileader_line_type_groups(pairs: &[Pair<'_>]) -> Result<LineTypeGroups, ReadError> {
+/// A MULTILEADER's line groups: what [`LineTypeGroups`] says, and the size
+/// its arrowheads are drawn at, as
+/// [`MultiLeaderEntity::resolve_arrow_size`] settles it from the context
+/// data's arrowhead size (140, outside its leader roots) and each kept
+/// line's override flags (93) and size (40) inside its `LEADER_LINE{` block.
+fn multileader_line_groups(pairs: &[Pair<'_>]) -> Result<(LineTypeGroups, Option<f64>), ReadError> {
     // A flag word is a 32-bit pattern; a file may write it signed.
     let flags = |p: &Pair<'_>| integer(p).map(|v| v as u32);
     let mut groups = LineTypeGroups {
@@ -375,37 +380,54 @@ fn multileader_line_type_groups(pairs: &[Pair<'_>]) -> Result<LineTypeGroups, Re
         style: None,
         lines: Vec::new(),
     };
+    let mut context_arrow_size = None;
+    let mut line_arrow_sizes = Vec::new();
     let mut in_context = false;
-    // The line being read: whether it has a point, and its two groups.
-    let mut line: Option<(bool, Option<u32>, Option<i64>)> = None;
+    let mut in_root = false;
+    /// The line being read: whether it has a point, and its groups.
+    #[derive(Default)]
+    struct Line {
+        has_point: bool,
+        flags: Option<u32>,
+        line_type: Option<i64>,
+        arrow_size: Option<f64>,
+    }
+    let mut line: Option<Line> = None;
     for p in pairs {
         let value = p.value.trim();
         match (p.code, value) {
             (300, "CONTEXT_DATA{") => in_context = true,
             (301, "}") => in_context = false,
+            (302, "LEADER{") if in_context => in_root = true,
+            (303, "}") if in_context => in_root = false,
             (305, "}") if in_context => {
-                if let Some((true, own_flags, own_type)) = line.take() {
-                    groups.lines.push((own_flags, own_type));
+                if let Some(l) = line.take().filter(|l| l.has_point) {
+                    groups.lines.push((l.flags, l.line_type));
+                    line_arrow_sizes.push((l.flags, l.arrow_size));
                 }
             }
-            (304, "LEADER_LINE{") if in_context => line = Some((false, None, None)),
-            _ if in_context => {
-                if let Some((has_point, own_flags, own_type)) = line.as_mut() {
-                    match p.code {
-                        10 => *has_point = true,
-                        93 => *own_flags = Some(flags(p)?),
-                        170 => *own_type = Some(integer(p)?),
-                        _ => {}
-                    }
+            (304, "LEADER_LINE{") if in_context => line = Some(Line::default()),
+            _ if in_context => match line.as_mut() {
+                Some(l) => match p.code {
+                    10 => l.has_point = true,
+                    93 => l.flags = Some(flags(p)?),
+                    170 => l.line_type = Some(integer(p)?),
+                    40 => l.arrow_size = Some(number(p)?),
+                    _ => {}
+                },
+                None if !in_root && p.code == 140 && context_arrow_size.is_none() => {
+                    context_arrow_size = Some(number(p)?);
                 }
-            }
+                None => {}
+            },
             (90, _) if groups.flags.is_none() => groups.flags = Some(flags(p)?),
             (170, _) if groups.entity_type.is_none() => groups.entity_type = Some(integer(p)?),
             (340, _) if groups.style.is_none() => groups.style = Some(value.to_ascii_uppercase()),
             _ => {}
         }
     }
-    Ok(groups)
+    let arrow_size = MultiLeaderEntity::resolve_arrow_size(context_arrow_size, line_arrow_sizes);
+    Ok((groups, arrow_size))
 }
 
 /// Builds the entity `type_name` from its pairs.
@@ -847,12 +869,14 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
         // The leader roots, each with the lines that run to it, and what
         // they point out.
         "MULTILEADER" => {
-            line_type_groups = Some(multileader_line_type_groups(pairs)?);
+            let (groups, arrow_size) = multileader_line_groups(pairs)?;
+            line_type_groups = Some(groups);
             Entity::MultiLeader(MultiLeaderEntity {
                 common,
                 leaders: multileader_leaders(pairs)?,
                 // Settled by the reader once the styles are read.
                 line_type: None,
+                arrow_size,
                 content: multileader_content(pairs)?,
             })
         }
