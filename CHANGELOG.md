@@ -7,6 +7,11 @@ bumps the minor version.
 
 ## [Unreleased]
 
+### Added
+
+- A block that states it is an external reference (BLOCK 70 bit 4) carries the referenced drawing's
+  path (1) and whether it is an overlay (bit 8), as `BlockRecord::external_reference`.
+
 ## [0.7.0] - 2026-10-07
 
 ### Added

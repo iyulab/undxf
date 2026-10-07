@@ -88,7 +88,7 @@ pub(crate) fn num_or(pairs: &[Pair<'_>], code: i32, default: f64) -> Result<f64,
     Ok(num(pairs, code)?.unwrap_or(default))
 }
 
-fn int(pairs: &[Pair<'_>], code: i32) -> Result<Option<i64>, ReadError> {
+pub(crate) fn int(pairs: &[Pair<'_>], code: i32) -> Result<Option<i64>, ReadError> {
     pairs
         .iter()
         .find(|p| p.code == code)

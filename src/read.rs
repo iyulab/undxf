@@ -12,9 +12,9 @@ use uncad_model::model::{
     TableFlow,
 };
 use uncad_model::tables::{
-    AngularUnitFormat, ArcSymbol, BlockRecord, DimStyleRecord, FractionFormat, ImageDefinition,
-    LayerRecord, LayoutRecord, LinearUnitFormat, PlotPaperUnits, PlotRotation, PlotSettings,
-    ResolutionUnit, Tables,
+    AngularUnitFormat, ArcSymbol, BlockRecord, DimStyleRecord, ExternalReference, FractionFormat,
+    ImageDefinition, LayerRecord, LayoutRecord, LinearUnitFormat, PlotPaperUnits, PlotRotation,
+    PlotSettings, ResolutionUnit, Tables,
 };
 use uncad_model::{CadDatabase, HeaderVariables, ReadDiagnostics};
 
@@ -576,6 +576,17 @@ impl<'a, 'b> Reader<'a, 'b> {
                     // The base point (10/20/30): the point of the definition
                     // a block reference puts on its insertion point.
                     let base_point = entity::point3_of(header)?;
+                    // 70 bit 4: an external reference, to the drawing 1
+                    // names; bit 8: attached as an overlay.
+                    let flags = entity::int(header, 70)?.unwrap_or(0);
+                    let external_reference = (flags & 4 != 0).then(|| ExternalReference {
+                        path: header
+                            .iter()
+                            .find(|p| p.code == 1)
+                            .map(|p| string(p.value))
+                            .unwrap_or_default(),
+                        overlay: flags & 8 != 0,
+                    });
                     let mut entities = Vec::new();
                     loop {
                         if self.at("ENDBLK") {
@@ -597,6 +608,7 @@ impl<'a, 'b> Reader<'a, 'b> {
                     let block = self.block(&name);
                     block.entities.extend(entities);
                     block.base_point = base_point;
+                    block.external_reference = external_reference;
                 }
                 _ => {}
             }
@@ -802,6 +814,7 @@ impl<'a, 'b> Reader<'a, 'b> {
                 name: key,
                 entities: Vec::new(),
                 base_point: Default::default(),
+                external_reference: None,
             })
     }
 
