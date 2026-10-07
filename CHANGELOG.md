@@ -7,9 +7,15 @@ bumps the minor version.
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-07
+
 ### Added
 
 - The header's `$PDMODE` and `$PDSIZE` -- how the drawing's points are shown.
+
+### Changed
+
+- Built on `uncad-model` 0.8.0.
 
 ## [0.6.0] - 2026-10-07
 
