@@ -74,6 +74,37 @@ fn the_drawing_carries_the_unit_code_the_header_states() {
     assert_eq!(db.header.insunits, None);
 }
 
+#[test]
+fn the_drawing_carries_how_its_points_are_shown() {
+    let (db, _) = read_str_with_header(TEXT).unwrap();
+    assert_eq!((db.header.pdmode, db.header.pdsize), (None, None));
+
+    let stated = TEXT.replace(
+        "  9
+$INSUNITS
+",
+        "  9
+$PDMODE
+ 70
+    35
+  9
+$PDSIZE
+ 40
+2.5
+  9
+$INSUNITS
+",
+    );
+    let (db, _) = read_str_with_header(&stated).unwrap();
+    assert_eq!((db.header.pdmode, db.header.pdsize), (Some(35), Some(2.5)));
+    let shown = db
+        .header
+        .point_display()
+        .expect("a mode the format defines");
+    assert_eq!(shown.figure, uncad_model::PointFigure::Cross);
+    assert!(shown.circle);
+}
+
 const CORPUS: &str = concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/../uncad/lib/libredwg/test/test-data"

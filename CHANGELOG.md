@@ -7,6 +7,10 @@ bumps the minor version.
 
 ## [Unreleased]
 
+### Added
+
+- The header's `$PDMODE` and `$PDSIZE` -- how the drawing's points are shown.
+
 ## [0.6.0] - 2026-10-07
 
 ### Added

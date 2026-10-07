@@ -901,6 +901,9 @@ impl<'a, 'b> Reader<'a, 'b> {
             insunits: header.int("INSUNITS").and_then(|v| u16::try_from(v).ok()),
             fingerprintguid: header.text("FINGERPRINTGUID"),
             versionguid: header.text("VERSIONGUID"),
+            // Group 70 is 16-bit, like INSUNITS'.
+            pdmode: header.int("PDMODE").and_then(|v| i16::try_from(v).ok()),
+            pdsize: header.real("PDSIZE"),
         };
         let db = CadDatabase {
             entities,
