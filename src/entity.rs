@@ -614,6 +614,15 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
         }
         "INSERT" => {
             attribs_follow = int(pairs, 66)? == Some(1);
+            // An array of placements (MINSERT): the model holds one, so the
+            // rest would be lost in silence.
+            let columns = int(pairs, 70)?.unwrap_or(1);
+            let rows = int(pairs, 71)?.unwrap_or(1);
+            if columns > 1 || rows > 1 {
+                warnings.push(format!(
+                    "MINSERT: an INSERT places its block as an array of {columns} columns and {rows} rows (groups 70 and 71); only its first placement is read"
+                ));
+            }
             Entity::Insert(InsertEntity {
                 common,
                 block_name: name_ref(text(pairs, 2)),
@@ -1019,7 +1028,7 @@ fn table_grid(
         && cells.len() == heights.len() * column_widths.len();
     if !whole {
         warnings.push(format!(
-            "TABLE_GRID: an ACAD_TABLE states {rows} rows and {columns} columns (groups 91 and 92)              but {} row heights, {} column widths and {} cells; its cells are not read",
+            "TABLE_GRID: an ACAD_TABLE states {rows} rows and {columns} columns (groups 91 and 92) but {} row heights, {} column widths and {} cells; its cells are not read",
             heights.len(),
             column_widths.len(),
             cells.len()
@@ -1077,7 +1086,7 @@ fn table_cell(
     };
     let (Some(span_columns), Some(span_rows)) = (span(175)?, span(176)?) else {
         warnings.push(format!(
-            "TABLE_GRID: an ACAD_TABLE cell (row {row}, column {column}) states a span              (groups 175 and 176) that is not a count; its cells are not read"
+            "TABLE_GRID: an ACAD_TABLE cell (row {row}, column {column}) states a span (groups 175 and 176) that is not a count; its cells are not read"
         ));
         return Ok(None);
     };

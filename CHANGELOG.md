@@ -7,6 +7,11 @@ bumps the minor version.
 
 ## [Unreleased]
 
+### Fixed
+
+- An INSERT that places its block as an array -- columns or rows (groups 70, 71) over one, a MINSERT -- is read as its first placement, as before, but now with a `MINSERT:` warning saying the rest are not read; it lost them in silence.
+- Two `TABLE_GRID` warnings carried a run of spaces in the middle of their sentence.
+
 ## [0.8.0] - 2026-10-07
 
 ### Added
