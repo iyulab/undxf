@@ -7,6 +7,8 @@ bumps the minor version.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-10-22
+
 ### Fixed
 
 - An INSERT that places its block as an array -- columns or rows (groups 70, 71) over one, a MINSERT -- is read as its first placement, as before, but now with a `MINSERT:` warning saying the rest are not read; it lost them in silence.
