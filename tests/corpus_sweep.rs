@@ -127,12 +127,14 @@ fn corpus_sweep() {
         println!("  {f}: {n}");
     }
 
-    // Pinned 2026-09-22 on libredwg a8ce248's test-data. The one file that
-    // does not read is a pre-R10 drawing (r1.4/entities.dxf) whose first
-    // line is not a group code: that format is not the pair form this crate
-    // reads, and the error says so at line 1.
-    assert_eq!(s.files, 67);
-    assert_eq!(s.read, 66, "{:?}", s.errors);
+    // Pinned on libredwg 6f3f82b9's test-data (first pinned 2026-09-22 on
+    // a8ce248). The one file that does not read is a pre-R10 drawing
+    // (r1.4/entities.dxf) whose first line is not a group code: that format is
+    // not the pair form this crate reads, and the error says so at line 1.
+    // Forty-seven drawings were added since: thirty-five hold objects alone
+    // (an empty entities section) and twelve add twelve entities in all.
+    assert_eq!(s.files, 114);
+    assert_eq!(s.read, 113, "{:?}", s.errors);
     assert_eq!(s.errors.get("BAD_GROUP_CODE"), Some(&1));
     assert_eq!(
         s.code_page, 4,
@@ -143,7 +145,7 @@ fn corpus_sweep() {
         "every code page in the corpus is known and every byte decodes: {:?}",
         s.diagnostics
     );
-    assert_eq!(s.entities, 1225);
+    assert_eq!(s.entities, 1237);
     assert_eq!(s.known.get("LINE"), Some(&49137));
     assert_eq!(s.known.get("POLYLINE_2D"), Some(&35));
     assert_eq!(s.known.get("POLYLINE_3D"), Some(&14));
@@ -174,7 +176,7 @@ fn corpus_sweep() {
     assert_eq!(s.known.get("HATCH"), Some(&16));
     assert_eq!(s.unknown.get("HATCH"), None);
     // Feature control frames, wipeouts and multilines.
-    assert_eq!(s.known.get("TOLERANCE"), Some(&9));
+    assert_eq!(s.known.get("TOLERANCE"), Some(&10));
     assert_eq!(s.known.get("WIPEOUT"), Some(&16));
     assert_eq!(s.known.get("MLINE"), Some(&10));
     // ACIS bodies: in the record up to R2010, in the ACDSDATA section from
