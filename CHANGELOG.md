@@ -7,6 +7,12 @@ bumps the minor version.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-30
+
+### Changed
+
+- Built on `uncad-model` 0.10.0.
+
 ## [0.8.1] - 2026-10-22
 
 ### Fixed
