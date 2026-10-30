@@ -153,6 +153,11 @@ fn the_other_ascii_cases_read_exactly_too() {
             include_str!("golden/g21.dxf"),
             include_str!("golden/g21.expected.json"),
         ),
+        (
+            "g22",
+            include_str!("golden/g22.dxf"),
+            include_str!("golden/g22.expected.json"),
+        ),
     ] {
         let expected: CadDatabase = serde_json::from_str(json).expect("deserializes");
         let db = read_str(dxf).unwrap_or_else(|e| panic!("{name}: {e}"));
