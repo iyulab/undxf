@@ -502,7 +502,10 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
 ///
 /// `None`, reported as `TABLE_GRID`, when the counts do not agree -- a
 /// partial grid would put cells in the wrong rows. `None` without a report
-/// when the record states no rows or columns at all.
+/// when the record states no rows or columns at all. `None`, reported as
+/// `TABLE_CELL_TEXT` with the count, when a cell holds a value whose text
+/// cannot be read: a grid that lists such a cell as empty would be read
+/// by a sum or a count as a table with nothing there.
 fn table_grid(
     table: &[Pair<'_>],
     warnings: &mut Vec<String>,
@@ -546,12 +549,13 @@ fn table_grid(
         return Ok(None);
     }
     let mut cells = cells.into_iter();
+    let mut unread = 0usize;
     let mut grid_rows = Vec::with_capacity(heights.len());
     for (row, height) in heights.into_iter().enumerate() {
         let mut row_cells = Vec::with_capacity(column_widths.len());
         for column in 0..column_widths.len() {
             let pairs = cells.next().expect("the counts were checked");
-            let Some(cell) = table_cell(pairs, row, column, warnings)? else {
+            let Some(cell) = table_cell(pairs, row, column, &mut unread, warnings)? else {
                 return Ok(None);
             };
             row_cells.push(cell);
@@ -560,6 +564,12 @@ fn table_grid(
             height,
             cells: row_cells,
         });
+    }
+    if unread > 0 {
+        warnings.push(format!(
+            "TABLE_CELL_TEXT: an ACAD_TABLE has {unread} cells whose value is not a text this reader joins (a value of another kind, or a text continued over several groups); its cells are not read"
+        ));
+        return Ok(None);
     }
     Ok(Some(TableGrid {
         column_widths,
@@ -573,14 +583,15 @@ fn table_grid(
 /// cell (to R2004) or inside its `CELL_VALUE` list (from R2007), where 90
 /// says the value's kind: 4 a string, 0 no value. An empty string and no
 /// value are the same empty cell and both read as no text. A value of
-/// another kind, or a text continued over several groups (2, 3, 303), is
-/// left unread and reported as `TABLE_CELL_TEXT`.
+/// another kind, or a text continued over several groups (2, 3, 303), has
+/// no text read: it is counted in `unread`, for the table to leave no grid.
 ///
 /// `None`, reported as `TABLE_GRID`, when a span is not a count.
 fn table_cell(
     pairs: &[Pair<'_>],
     row: usize,
     column: usize,
+    unread: &mut usize,
     warnings: &mut Vec<String>,
 ) -> Result<Option<TableCell>, ReadError> {
     let kind = match int(pairs, 171)? {
@@ -600,15 +611,10 @@ fn table_cell(
         ));
         return Ok(None);
     };
-    let unread = |why: String| {
-        format!("TABLE_CELL_TEXT: an ACAD_TABLE cell (row {row}, column {column}) {why}; its text is not read")
-    };
     let text = if kind == Some(TableCellKind::Block) {
         None
     } else if pairs.iter().any(|p| matches!(p.code, 2 | 3 | 303)) {
-        warnings.push(unread(
-            "continues its text over several groups (2, 3 or 303)".to_string(),
-        ));
+        *unread += 1;
         None
     } else {
         let value = match pairs
@@ -621,9 +627,8 @@ fn table_cell(
                 match int(value, 90)? {
                     Some(0) => None,
                     Some(4) => text(value, 1),
-                    other => {
-                        let kind = other.map_or("no".to_string(), |k| k.to_string());
-                        warnings.push(unread(format!("holds a value of kind {kind} (group 90)")));
+                    _ => {
+                        *unread += 1;
                         None
                     }
                 }

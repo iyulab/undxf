@@ -255,19 +255,20 @@ fn a_table_with_no_rows_is_an_empty_grid_not_an_unread_one() {
 }
 
 #[test]
-fn a_text_continued_over_several_groups_is_reported_and_left_unread() {
-    // The joining rule is not exercised by any drawing at hand, so the cell
-    // says it was not read rather than giving a cut-off text.
+fn a_text_continued_over_several_groups_leaves_the_table_unread_and_is_reported() {
+    // The joining rule is not exercised by any drawing at hand, so the table
+    // says its cells were not read rather than giving a cut-off text -- or a
+    // grid in which that cell reads as empty.
     let cells = "171\n1\n175\n1\n176\n1\n  2\nfirst part \n  1\nlast part\n";
     let (t, warnings) = read(&drawing(("1", "0"), true, 1, 1, cells));
-    let cell = &t.grid.expect("the grid stands").rows[0].cells[0];
-    assert_eq!(cell.text, None);
+    assert_eq!(t.grid, None);
     assert_eq!(warnings.len(), 1, "{warnings:?}");
     assert!(warnings[0].starts_with("TABLE_CELL_TEXT:"), "{warnings:?}");
+    assert!(warnings[0].contains("has 1 cells"), "{warnings:?}");
 }
 
 #[test]
-fn a_value_that_is_not_a_string_is_reported_and_left_unread() {
+fn a_value_that_is_not_a_string_leaves_the_table_unread_and_is_reported() {
     // 90 = 2: a real number, shown through a format this reader does not apply.
     let (t, warnings) = read(&drawing(
         ("1", "0"),
@@ -276,9 +277,30 @@ fn a_value_that_is_not_a_string_is_reported_and_left_unread() {
         1,
         &cell_r2007(" 90\n2\n140\n4.0\n 94\n0\n"),
     ));
-    assert_eq!(t.grid.expect("the grid stands").rows[0].cells[0].text, None);
+    assert_eq!(t.grid, None);
     assert_eq!(warnings.len(), 1, "{warnings:?}");
     assert!(warnings[0].starts_with("TABLE_CELL_TEXT:"), "{warnings:?}");
+}
+
+#[test]
+fn one_unread_cell_among_read_ones_leaves_the_whole_table_unread() {
+    // A sum down a column would skip the cell it could not read, and the
+    // table would answer for a column that is not the one in the file.
+    let real = |x: &str| cell_r2007(&format!(" 90\n2\n140\n{x}\n 94\n0\n"));
+    let string = |x: &str| cell_r2007(&format!(" 90\n4\n  1\n{x}\n"));
+
+    let cells = format!("{}{}{}", string("12"), real("4.0"), string("30"));
+    let (t, warnings) = read(&drawing(("1", "0"), true, 3, 1, &cells));
+    assert_eq!(t.grid, None);
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("has 1 cells"), "{warnings:?}");
+
+    // Two of them are counted, in one report.
+    let cells = format!("{}{}{}", real("1.0"), string("12"), real("2.0"));
+    let (t, warnings) = read(&drawing(("1", "0"), true, 3, 1, &cells));
+    assert_eq!(t.grid, None);
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("has 2 cells"), "{warnings:?}");
 }
 
 /// The 2 × 3 table with its own flow direction (group 70) when `own` is
