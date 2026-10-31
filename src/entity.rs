@@ -444,528 +444,38 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
     let mut table_style = None;
     let mut warnings = missing_required_groups(type_name, pairs);
     let entity = match type_name {
-        "LINE" => Entity::Line(LineEntity {
-            common,
-            start_point: point3(pairs, 10)?,
-            end_point: point3(pairs, 11)?,
-        }),
-        "CIRCLE" => Entity::Circle(CircleEntity {
-            common,
-            center: point3(pairs, 10)?,
-            radius: num_or(pairs, 40, 0.0)?,
-            extrusion: extrusion(pairs)?,
-        }),
-        "ARC" => Entity::Arc(ArcEntity {
-            common,
-            center: point3(pairs, 10)?,
-            radius: num_or(pairs, 40, 0.0)?,
-            start_angle: radians(pairs, 50)?,
-            end_angle: radians(pairs, 51)?,
-            extrusion: extrusion(pairs)?,
-        }),
-        "LWPOLYLINE" => {
-            // Vertices are the 10/20 pairs in order; a 10 opens a vertex,
-            // and a 42 that follows it (before the next 10) is that vertex's
-            // bulge, a 40 and a 41 its segment's start and end widths. An
-            // absent 42 is a straight segment, an absent width none of the
-            // vertex's own.
-            let mut vertices: Vec<PolylineVertex> = Vec::new();
-            let mut i = 0;
-            while i < pairs.len() {
-                match pairs[i].code {
-                    10 => {
-                        let x = number(&pairs[i])?;
-                        let y = match pairs.get(i + 1) {
-                            Some(p) if p.code == 20 => {
-                                i += 1;
-                                number(p)?
-                            }
-                            _ => 0.0,
-                        };
-                        vertices.push(PolylineVertex::straight(Point2D { x, y }));
-                    }
-                    code @ 40..=42 => {
-                        if let Some(last) = vertices.last_mut() {
-                            let value = number(&pairs[i])?;
-                            match code {
-                                40 => last.start_width = value,
-                                41 => last.end_width = value,
-                                _ => last.bulge = value,
-                            }
-                        }
-                    }
-                    _ => {}
-                }
-                i += 1;
-            }
-            let flags = int(pairs, 70)?.unwrap_or(0);
-            let const_width = num_or(pairs, 43, 0.0)?;
-            Entity::LwPolyline(LwPolylineEntity {
-                common,
-                vertices: without_restated_widths(vertices, const_width),
-                closed: flags & 1 == 1,
-                const_width,
-                elevation: num_or(pairs, 38, 0.0)?,
-                extrusion: extrusion(pairs)?,
-            })
-        }
-        "POINT" => Entity::Point(PointEntity {
-            common,
-            position: point3(pairs, 10)?,
-        }),
-        "SOLID" | "TRACE" => {
-            let corner3 = point2(pairs, 12)?;
-            // A three-cornered one leaves the fourth corner out, or writes
-            // it equal to the third; the reference says the two are the
-            // same.
-            let solid = SolidEntity {
-                common,
-                corner1: point2(pairs, 10)?,
-                corner2: point2(pairs, 11)?,
-                corner3,
-                corner4: match text(pairs, 13) {
-                    Some(_) => point2(pairs, 13)?,
-                    None => corner3,
-                },
-                // The corners share one z in their own plane; the first
-                // corner's is the one every writer states.
-                elevation: num_or(pairs, 30, 0.0)?,
-                extrusion: extrusion(pairs)?,
-            };
-            if type_name == "SOLID" {
-                Entity::Solid(solid)
-            } else {
-                Entity::Trace(solid)
-            }
-        }
-        "3DFACE" => {
-            let corner3 = point3(pairs, 12)?;
-            Entity::Face3D(Face3DEntity {
-                common,
-                corner1: point3(pairs, 10)?,
-                corner2: point3(pairs, 11)?,
-                corner3,
-                corner4: match text(pairs, 13) {
-                    Some(_) => point3(pairs, 13)?,
-                    None => corner3,
-                },
-                invisible_edges: Face3DEntity::invisible_edges_from_bits(
-                    int(pairs, 70)?.unwrap_or(0) as u32,
-                ),
-            })
-        }
-        "TEXT" => {
-            let placement = placement(type_name, pairs, 73, &mut warnings)?;
-            Entity::Text(TextEntity {
-                common,
-                start_point: point2(pairs, 10)?,
-                text_height: num_or(pairs, 40, 0.0)?,
-                text: string(text(pairs, 1).unwrap_or("")),
-                rotation: radians(pairs, 50)?,
-                horizontal_justification: placement.horizontal,
-                vertical_justification: placement.vertical,
-                alignment_point: placement.alignment_point,
-                width_factor: placement.width_factor,
-                oblique_angle: placement.oblique_angle,
-                style_name: placement.style_name,
-                elevation: num_or(pairs, 30, 0.0)?,
-                extrusion: extrusion(pairs)?,
-            })
-        }
-        "ATTRIB" => {
-            let placement = placement(type_name, pairs, 74, &mut warnings)?;
-            Entity::Attrib(AttribEntity {
-                common,
-                start_point: point2(pairs, 10)?,
-                text_height: num_or(pairs, 40, 0.0)?,
-                tag: string(text(pairs, 2).unwrap_or("")),
-                flags: attribute_flags(pairs)?,
-                text: string(text(pairs, 1).unwrap_or("")),
-                rotation: radians(pairs, 50)?,
-                horizontal_justification: placement.horizontal,
-                vertical_justification: placement.vertical,
-                alignment_point: placement.alignment_point,
-                width_factor: placement.width_factor,
-                oblique_angle: placement.oblique_angle,
-                style_name: placement.style_name,
-                elevation: num_or(pairs, 30, 0.0)?,
-                extrusion: extrusion(pairs)?,
-            })
-        }
-        "ATTDEF" => {
-            let placement = placement(type_name, pairs, 74, &mut warnings)?;
-            Entity::Attdef(AttdefEntity {
-                common,
-                start_point: point2(pairs, 10)?,
-                text_height: num_or(pairs, 40, 0.0)?,
-                tag: string(text(pairs, 2).unwrap_or("")),
-                flags: attribute_flags(pairs)?,
-                default_value: string(text(pairs, 1).unwrap_or("")),
-                rotation: radians(pairs, 50)?,
-                horizontal_justification: placement.horizontal,
-                vertical_justification: placement.vertical,
-                alignment_point: placement.alignment_point,
-                width_factor: placement.width_factor,
-                oblique_angle: placement.oblique_angle,
-                style_name: placement.style_name,
-                elevation: num_or(pairs, 30, 0.0)?,
-                extrusion: extrusion(pairs)?,
-            })
-        }
+        "LINE" => read_line(common, pairs)?,
+        "CIRCLE" => read_circle(common, pairs)?,
+        "ARC" => read_arc(common, pairs)?,
+        "LWPOLYLINE" => read_lwpolyline(common, pairs)?,
+        "POINT" => read_point(common, pairs)?,
+        "SOLID" | "TRACE" => read_solid(common, pairs, type_name)?,
+        "3DFACE" => read_face3d(common, pairs)?,
+        "TEXT" => read_text(common, pairs, type_name, &mut warnings)?,
+        "ATTRIB" => read_attrib(common, pairs, type_name, &mut warnings)?,
+        "ATTDEF" => read_attdef(common, pairs, type_name, &mut warnings)?,
         "INSERT" => {
             attribs_follow = int(pairs, 66)? == Some(1);
-            // An array of placements (MINSERT): the model holds one, so the
-            // rest would be lost in silence.
-            let columns = int(pairs, 70)?.unwrap_or(1);
-            let rows = int(pairs, 71)?.unwrap_or(1);
-            if columns > 1 || rows > 1 {
-                warnings.push(format!(
-                    "MINSERT: an INSERT places its block as an array of {columns} columns and {rows} rows (groups 70 and 71); only its first placement is read"
-                ));
-            }
-            Entity::Insert(InsertEntity {
-                common,
-                block_name: name_ref(text(pairs, 2)),
-                insertion_point: point3(pairs, 10)?,
-                scale: Point3D {
-                    x: num_or(pairs, 41, 1.0)?,
-                    y: num_or(pairs, 42, 1.0)?,
-                    z: num_or(pairs, 43, 1.0)?,
-                },
-                rotation: radians(pairs, 50)?,
-                attribs: Vec::new(),
-                extrusion: extrusion(pairs)?,
-            })
+            read_insert(common, pairs, &mut warnings)?
         }
-        // A table is a block reference (AcDbBlockReference: its block, 2, and
-        // insertion point, 10) with the table's own part after the
-        // AcDbTable marker, which reuses group codes. The text format writes
-        // no scale for a table, so the block-reference part's 41-43 are
-        // read if present and are 1 otherwise; it writes a horizontal
-        // direction (the table part's 11) in place of a rotation, and the
-        // rotation is that direction's angle in the XY plane.
-        "ACAD_TABLE" => {
-            let split = pairs
-                .iter()
-                .position(|p| p.code == 100 && p.value.trim() == "AcDbTable")
-                .unwrap_or(pairs.len());
-            let (reference, table) = pairs.split_at(split);
-            let rotation = match optional_point3(table, 11)? {
-                Some(d) if d.x != 0.0 || d.y != 0.0 => d.y.atan2(d.x),
-                _ => 0.0,
-            };
-            // The table's own flow direction is an override among its
-            // table-level groups, which come before the row heights (141);
-            // without one, the style it points at (342) says.
-            let table_level = &table[..table
-                .iter()
-                .position(|p| p.code == 141)
-                .unwrap_or(table.len())];
-            let flow = match int(table_level, 70)? {
-                Some(code) => {
-                    let flow = TableFlow::from_code(code);
-                    if flow.is_none() {
-                        warnings.push(format!(
-                            "TABLE_FLOW: an ACAD_TABLE states a flow direction (group 70) of {code}, which the format does not define; its flow is not read"
-                        ));
-                    }
-                    flow
-                }
-                None => {
-                    table_style = text(table, 342).map(|h| h.trim().to_ascii_uppercase());
-                    None
-                }
-            };
-            Entity::AcadTable(AcadTableEntity {
-                common,
-                block_name: name_ref(text(reference, 2)),
-                insertion_point: point3(reference, 10)?,
-                scale: Point3D {
-                    x: num_or(reference, 41, 1.0)?,
-                    y: num_or(reference, 42, 1.0)?,
-                    z: num_or(reference, 43, 1.0)?,
-                },
-                rotation,
-                grid: table_grid(table, &mut warnings)?,
-                flow,
-            })
-        }
-        "DIMENSION" | "ARC_DIMENSION" => {
-            let flag = int(pairs, 70)?;
-            let kind = dimension_kind(type_name, flag, pairs);
-            Entity::Dimension(DimensionEntity {
-                common,
-                block_name: name_ref(text(pairs, 2)),
-                kind,
-                measurement: num(pairs, 42)?,
-                text_override: text_override(text(pairs, 1)),
-                definition_point: Some(point3(pairs, 10)?),
-                text_midpoint: point2(pairs, 11)?,
-                points: DimensionPoints {
-                    extension1: optional_point3(pairs, 13)?,
-                    extension2: optional_point3(pairs, 14)?,
-                    radial: optional_point3(pairs, 15)?,
-                    arc: optional_point3(pairs, 16)?,
-                },
-                rotation: radians(pairs, 50)?,
-                text_rotation: radians(pairs, 53)?,
-                style_name: name_ref(text(pairs, 3)),
-                // Bit 64 of group 70 says which coordinate an ordinate dimension
-                // measures; on any other kind it means nothing.
-                ordinate_axis: (kind == Some(DimensionKind::Ordinate)).then(|| {
-                    if flag.unwrap_or(0) & 64 != 0 {
-                        OrdinateAxis::X
-                    } else {
-                        OrdinateAxis::Y
-                    }
-                }),
-                style_overrides: Some(style_overrides(pairs)?),
-            })
-        }
-        // A feature control frame: its text is the frame's contents, symbol
-        // codes and all, as the file wrote it.
-        "TOLERANCE" => Entity::Tolerance(ToleranceEntity {
-            common,
-            insertion_point: point3(pairs, 10)?,
-            // The frame's height is its dimension style's; the record
-            // states one only in old files.
-            text_height: num(pairs, 40)?.filter(|h| *h != 0.0),
-            text_value: string(text(pairs, 1).unwrap_or("")),
-            // Written only when the frame is turned from the world x axis;
-            // absent, it is not turned. A zero vector is no direction.
-            direction: Some(optional_point3(pairs, 11)?.unwrap_or(Point3D {
-                x: 1.0,
-                y: 0.0,
-                z: 0.0,
-            }))
-            .filter(|d| d.x != 0.0 || d.y != 0.0 || d.z != 0.0),
-            style_name: name_ref(text(pairs, 3)),
-        }),
-        // Each vertex writes its point (11), its segment's direction (12)
-        // and its miter (13), then its elements' parameters; the model
-        // carries the point and the miter.
-        "MLINE" => Entity::MLine(MLineEntity {
-            common,
-            vertices: repeated_point3(pairs, 11)?
-                .into_iter()
-                .zip(repeated_point3(pairs, 13)?)
-                .map(|(point, miter_direction)| MLineVertex {
-                    point,
-                    miter_direction,
-                })
-                .collect(),
-            // 71 bit 2: closed.
-            closed: int(pairs, 71)?.is_some_and(|f| f & 2 != 0),
-            mlinestyle_name: name_ref(text(pairs, 2)),
-            scale: num(pairs, 40)?,
-        }),
-        "WIPEOUT" => Entity::Wipeout(WipeoutEntity {
-            common,
-            boundary: wipeout_boundary(pairs)?,
-        }),
-        // The frame as the file states it, the definition by its handle
-        // (resolved once the OBJECTS section is in), and the clip boundary
-        // through that frame, as a WIPEOUT's is.
-        "IMAGE" => {
-            let insertion_point = point3(pairs, 10)?;
-            let u_vector = point3(pairs, 11)?;
-            let v_vector = point3(pairs, 12)?;
-            let size_pixels = Point2D {
-                x: num_or(pairs, 13, 0.0)?,
-                y: num_or(pairs, 23, 0.0)?,
-            };
-            Entity::Image(ImageEntity {
-                common,
-                insertion_point,
-                u_vector,
-                v_vector,
-                size_pixels,
-                definition: match text(pairs, 340).map(str::trim) {
-                    Some(h) if !h.is_empty() && h != "0" => Ref::Unresolved(h.to_ascii_uppercase()),
-                    _ => Ref::Absent,
-                },
-                display_flags: int(pairs, 70)?.and_then(|v| u16::try_from(v).ok()),
-                clipping: int(pairs, 280)?.map(|v| v != 0),
-                brightness: int(pairs, 281)?.and_then(|v| u8::try_from(v).ok()),
-                contrast: int(pairs, 282)?.and_then(|v| u8::try_from(v).ok()),
-                fade: int(pairs, 283)?.and_then(|v| u8::try_from(v).ok()),
-                clip_outside: int(pairs, 290)?.map(|v| v != 0),
-                boundary: clip_boundary(pairs, insertion_point, u_vector, v_vector, size_pixels)?,
-            })
-        }
-        "LEADER" => Entity::Leader(LeaderEntity {
-            common,
-            vertices: repeated_point3(pairs, 10)?,
-            // Group 71 is a flag: drawn or not. A text drawing may omit it,
-            // and a value outside the two is not one this reader can read.
-            has_arrowhead: match int(pairs, 71)? {
-                Some(0) => Some(false),
-                Some(1) => Some(true),
-                _ => None,
-            },
-            // 0 straight, 1 spline. The format does not say what an absent
-            // group means here, so an absent one is nothing.
-            path_type: match int(pairs, 72)? {
-                Some(0) => Some(LeaderPath::Straight),
-                Some(1) => Some(LeaderPath::Spline),
-                _ => None,
-            },
-            // 0 text, 1 tolerance, 2 insert, 3 none -- and 3 is the value the
-            // format falls back to, so anything else reads as "nothing".
-            annotation: match int(pairs, 73)? {
-                Some(0) => LeaderAnnotation::MText,
-                Some(1) => LeaderAnnotation::Tolerance,
-                Some(2) => LeaderAnnotation::Insert,
-                _ => LeaderAnnotation::Nothing,
-            },
-            annotation_id: handle_ref(pairs, 340),
-            style_name: name_ref(text(pairs, 3)),
-            style_overrides: Some(style_overrides(pairs)?),
-        }),
-        "ELLIPSE" => Entity::Ellipse(EllipseEntity {
-            common,
-            center: point3(pairs, 10)?,
-            major_axis_endpoint: point3(pairs, 11)?,
-            axis_ratio: num_or(pairs, 40, 0.0)?,
-            // Parameters of the ellipse, already in radians -- not the
-            // degrees ARC and TEXT write.
-            start_angle: num_or(pairs, 41, 0.0)?,
-            end_angle: num_or(pairs, 42, std::f64::consts::TAU)?,
-            extrusion: extrusion(pairs)?,
-        }),
-        "MTEXT" => Entity::MText(MTextEntity {
-            common,
-            insertion_point: point3(pairs, 10)?,
-            text: mtext_string(pairs),
-            text_height: num_or(pairs, 40, 0.0)?,
-            // The rotation is written as the text's X-axis direction (11),
-            // or -- by older writers -- as an angle (50); neither means
-            // the text is not turned.
-            rotation: match optional_point3(pairs, 11)? {
-                Some(d) => d.y.atan2(d.x),
-                None => radians(pairs, 50)?,
-            },
-            // A fraction of the default spacing: absent is 1.
-            line_spacing_factor: num_or(pairs, 44, 1.0)?,
-            // No box to wrap in: absent is 0.
-            reference_width: num_or(pairs, 41, 0.0)?,
-            // A measurement the writing application made; a zero measures no
-            // text.
-            extents_width: num(pairs, 42)?.filter(|w| *w != 0.0),
-            extents_height: num(pairs, 43)?.filter(|h| *h != 0.0),
-            style_name: name_ref(text(pairs, 7)),
-            attachment: int(pairs, 71)?.and_then(MTextAttachment::from_code),
-        }),
-        "SPLINE" => {
-            // Bits 1 closed, 2 periodic. No group 70 is a record that does
-            // not say, which is not the same as saying no.
-            let flags = int(pairs, 70)?;
-            Entity::Spline(SplineEntity {
-                common,
-                degree: u32::try_from(int(pairs, 71)?.unwrap_or(0)).unwrap_or(0),
-                closed: flags.map(|f| f & 1 != 0),
-                periodic: flags.map(|f| f & 2 != 0),
-                knots: repeated_number(pairs, 40)?,
-                // Written for every control point or for none; none means
-                // every weight is 1.
-                weights: repeated_number(pairs, 41)?,
-                fit_points: repeated_point3(pairs, 11)?,
-                control_points: repeated_point3(pairs, 10)?,
-                start_tangent: optional_point3(pairs, 12)?,
-                end_tangent: optional_point3(pairs, 13)?,
-            })
-        }
-        // The leader roots, each with the lines that run to it, and what
-        // they point out.
-        "MULTILEADER" => {
-            let (groups, arrow_size) = multileader_line_groups(pairs)?;
-            line_type_groups = Some(groups);
-            Entity::MultiLeader(MultiLeaderEntity {
-                common,
-                leaders: multileader_leaders(pairs)?,
-                // Settled by the reader once the styles are read.
-                line_type: None,
-                arrow_size,
-                content: multileader_content(pairs)?,
-            })
-        }
-        // A light: where it is, what it aims at (11 -- a point light states
-        // it too), and which kind it is. Whether it aims follows from the
-        // kind and is left to whoever needs it.
-        "LIGHT" => {
-            let position = point3(pairs, 10)?;
-            Entity::Light(LightEntity {
-                common,
-                position,
-                // The same stand-in the other reader uses when there is none.
-                target: optional_point3(pairs, 11)?.unwrap_or(position),
-                light_type: match int(pairs, 70)? {
-                    Some(1) => Some(LightType::Distant),
-                    Some(2) => Some(LightType::Point),
-                    Some(3) => Some(LightType::Spot),
-                    _ => None,
-                },
-            })
-        }
-        "RAY" => Entity::Ray(RayEntity {
-            common,
-            point: point3(pairs, 10)?,
-            vector: point3(pairs, 11)?,
-        }),
-        "XLINE" => Entity::XLine(RayEntity {
-            common,
-            point: point3(pairs, 10)?,
-            vector: point3(pairs, 11)?,
-        }),
-        // A paper-space viewport: its frame on the sheet, and the view of
-        // the model it shows through it.
-        "VIEWPORT" => Entity::Viewport(ViewportEntity {
-            common,
-            center: point3(pairs, 10)?,
-            width: num_or(pairs, 40, 0.0)?,
-            height: num_or(pairs, 41, 0.0)?,
-            view: viewport_view(pairs)?,
-            on: viewport_on(pairs)?,
-            viewport_id: int(pairs, 69)?.map(|id| id as i32),
-            // The frozen layers by their LAYER records' handles (341, or 331
-            // as a DXF from R2004 on writes them), resolved to names once the
-            // tables are in.
-            frozen_layers: pairs
-                .iter()
-                .filter(|p| p.code == 341 || p.code == 331)
-                .map(|p| Ref::Unresolved(p.value.trim().to_ascii_uppercase()))
-                .collect(),
-        }),
-        "HATCH" => {
-            let hatch = crate::hatch::read(pairs, &mut warnings)?;
-            Entity::Hatch(HatchEntity {
-                common,
-                boundary_paths: hatch.boundary_paths,
-                solid_fill: hatch.solid_fill,
-                gradient: hatch.gradient,
-                pattern_lines: hatch.pattern_lines,
-                elevation: hatch.elevation,
-                extrusion: hatch.extrusion,
-                style: hatch.style,
-            })
-        }
-        // The ACIS body's wireframe, when the record holds the body's text
-        // (up to R2010). From R2013 the body is in the ACDSDATA section, as
-        // SAB bytes: the entity is kept UNKNOWN here, and the reader turns it
-        // into its solid once that section has been read.
+        "ACAD_TABLE" => read_acad_table(common, pairs, &mut warnings, &mut table_style)?,
+        "DIMENSION" | "ARC_DIMENSION" => read_dimension(common, pairs, type_name)?,
+        "TOLERANCE" => read_tolerance(common, pairs)?,
+        "MLINE" => read_mline(common, pairs)?,
+        "WIPEOUT" => read_wipeout(common, pairs)?,
+        "IMAGE" => read_image(common, pairs)?,
+        "LEADER" => read_leader(common, pairs)?,
+        "ELLIPSE" => read_ellipse(common, pairs)?,
+        "MTEXT" => read_mtext(common, pairs)?,
+        "SPLINE" => read_spline(common, pairs)?,
+        "MULTILEADER" => read_multileader(common, pairs, &mut line_type_groups)?,
+        "LIGHT" => read_light(common, pairs)?,
+        "RAY" => read_ray(common, pairs)?,
+        "XLINE" => read_xline(common, pairs)?,
+        "VIEWPORT" => read_viewport(common, pairs)?,
+        "HATCH" => read_hatch(common, pairs, &mut warnings)?,
         "3DSOLID" | "REGION" if pairs.iter().any(|p| p.code == 1) => {
-            let sat = crate::acis::sat_text(pairs).unwrap_or_default();
-            let (wireframe_edges, skipped_edges) = uncad_model::acis::wireframe(&sat);
-            let solid = Solid3DEntity {
-                common,
-                wireframe_edges,
-                skipped_edges,
-            };
-            if type_name == "REGION" {
-                Entity::Region(solid)
-            } else {
-                Entity::Solid3D(solid)
-            }
+            read_solid3d(common, pairs, type_name)?
         }
         other => Entity::Unknown {
             common,
@@ -1539,6 +1049,626 @@ fn multileader_content(pairs: &[Pair<'_>]) -> Result<Option<MultiLeaderContent>,
         })));
     }
     Ok(None)
+}
+
+fn read_line(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    Ok(Entity::Line(LineEntity {
+        common,
+        start_point: point3(pairs, 10)?,
+        end_point: point3(pairs, 11)?,
+    }))
+}
+
+fn read_circle(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    Ok(Entity::Circle(CircleEntity {
+        common,
+        center: point3(pairs, 10)?,
+        radius: num_or(pairs, 40, 0.0)?,
+        extrusion: extrusion(pairs)?,
+    }))
+}
+
+fn read_arc(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    Ok(Entity::Arc(ArcEntity {
+        common,
+        center: point3(pairs, 10)?,
+        radius: num_or(pairs, 40, 0.0)?,
+        start_angle: radians(pairs, 50)?,
+        end_angle: radians(pairs, 51)?,
+        extrusion: extrusion(pairs)?,
+    }))
+}
+
+fn read_lwpolyline(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    // Vertices are the 10/20 pairs in order; a 10 opens a vertex,
+    // and a 42 that follows it (before the next 10) is that vertex's
+    // bulge, a 40 and a 41 its segment's start and end widths. An
+    // absent 42 is a straight segment, an absent width none of the
+    // vertex's own.
+    let mut vertices: Vec<PolylineVertex> = Vec::new();
+    let mut i = 0;
+    while i < pairs.len() {
+        match pairs[i].code {
+            10 => {
+                let x = number(&pairs[i])?;
+                let y = match pairs.get(i + 1) {
+                    Some(p) if p.code == 20 => {
+                        i += 1;
+                        number(p)?
+                    }
+                    _ => 0.0,
+                };
+                vertices.push(PolylineVertex::straight(Point2D { x, y }));
+            }
+            code @ 40..=42 => {
+                if let Some(last) = vertices.last_mut() {
+                    let value = number(&pairs[i])?;
+                    match code {
+                        40 => last.start_width = value,
+                        41 => last.end_width = value,
+                        _ => last.bulge = value,
+                    }
+                }
+            }
+            _ => {}
+        }
+        i += 1;
+    }
+    let flags = int(pairs, 70)?.unwrap_or(0);
+    let const_width = num_or(pairs, 43, 0.0)?;
+    Ok(Entity::LwPolyline(LwPolylineEntity {
+        common,
+        vertices: without_restated_widths(vertices, const_width),
+        closed: flags & 1 == 1,
+        const_width,
+        elevation: num_or(pairs, 38, 0.0)?,
+        extrusion: extrusion(pairs)?,
+    }))
+}
+
+fn read_point(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    Ok(Entity::Point(PointEntity {
+        common,
+        position: point3(pairs, 10)?,
+    }))
+}
+
+fn read_solid(
+    common: EntityCommon,
+    pairs: &[Pair<'_>],
+    type_name: &str,
+) -> Result<Entity, ReadError> {
+    let corner3 = point2(pairs, 12)?;
+    // A three-cornered one leaves the fourth corner out, or writes
+    // it equal to the third; the reference says the two are the
+    // same.
+    let solid = SolidEntity {
+        common,
+        corner1: point2(pairs, 10)?,
+        corner2: point2(pairs, 11)?,
+        corner3,
+        corner4: match text(pairs, 13) {
+            Some(_) => point2(pairs, 13)?,
+            None => corner3,
+        },
+        // The corners share one z in their own plane; the first
+        // corner's is the one every writer states.
+        elevation: num_or(pairs, 30, 0.0)?,
+        extrusion: extrusion(pairs)?,
+    };
+    Ok(if type_name == "SOLID" {
+        Entity::Solid(solid)
+    } else {
+        Entity::Trace(solid)
+    })
+}
+
+fn read_face3d(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    let corner3 = point3(pairs, 12)?;
+    Ok(Entity::Face3D(Face3DEntity {
+        common,
+        corner1: point3(pairs, 10)?,
+        corner2: point3(pairs, 11)?,
+        corner3,
+        corner4: match text(pairs, 13) {
+            Some(_) => point3(pairs, 13)?,
+            None => corner3,
+        },
+        invisible_edges: Face3DEntity::invisible_edges_from_bits(
+            int(pairs, 70)?.unwrap_or(0) as u32
+        ),
+    }))
+}
+
+fn read_text(
+    common: EntityCommon,
+    pairs: &[Pair<'_>],
+    type_name: &str,
+    warnings: &mut Vec<String>,
+) -> Result<Entity, ReadError> {
+    let placement = placement(type_name, pairs, 73, warnings)?;
+    Ok(Entity::Text(TextEntity {
+        common,
+        start_point: point2(pairs, 10)?,
+        text_height: num_or(pairs, 40, 0.0)?,
+        text: string(text(pairs, 1).unwrap_or("")),
+        rotation: radians(pairs, 50)?,
+        horizontal_justification: placement.horizontal,
+        vertical_justification: placement.vertical,
+        alignment_point: placement.alignment_point,
+        width_factor: placement.width_factor,
+        oblique_angle: placement.oblique_angle,
+        style_name: placement.style_name,
+        elevation: num_or(pairs, 30, 0.0)?,
+        extrusion: extrusion(pairs)?,
+    }))
+}
+
+fn read_attrib(
+    common: EntityCommon,
+    pairs: &[Pair<'_>],
+    type_name: &str,
+    warnings: &mut Vec<String>,
+) -> Result<Entity, ReadError> {
+    let placement = placement(type_name, pairs, 74, warnings)?;
+    Ok(Entity::Attrib(AttribEntity {
+        common,
+        start_point: point2(pairs, 10)?,
+        text_height: num_or(pairs, 40, 0.0)?,
+        tag: string(text(pairs, 2).unwrap_or("")),
+        flags: attribute_flags(pairs)?,
+        text: string(text(pairs, 1).unwrap_or("")),
+        rotation: radians(pairs, 50)?,
+        horizontal_justification: placement.horizontal,
+        vertical_justification: placement.vertical,
+        alignment_point: placement.alignment_point,
+        width_factor: placement.width_factor,
+        oblique_angle: placement.oblique_angle,
+        style_name: placement.style_name,
+        elevation: num_or(pairs, 30, 0.0)?,
+        extrusion: extrusion(pairs)?,
+    }))
+}
+
+fn read_attdef(
+    common: EntityCommon,
+    pairs: &[Pair<'_>],
+    type_name: &str,
+    warnings: &mut Vec<String>,
+) -> Result<Entity, ReadError> {
+    let placement = placement(type_name, pairs, 74, warnings)?;
+    Ok(Entity::Attdef(AttdefEntity {
+        common,
+        start_point: point2(pairs, 10)?,
+        text_height: num_or(pairs, 40, 0.0)?,
+        tag: string(text(pairs, 2).unwrap_or("")),
+        flags: attribute_flags(pairs)?,
+        default_value: string(text(pairs, 1).unwrap_or("")),
+        rotation: radians(pairs, 50)?,
+        horizontal_justification: placement.horizontal,
+        vertical_justification: placement.vertical,
+        alignment_point: placement.alignment_point,
+        width_factor: placement.width_factor,
+        oblique_angle: placement.oblique_angle,
+        style_name: placement.style_name,
+        elevation: num_or(pairs, 30, 0.0)?,
+        extrusion: extrusion(pairs)?,
+    }))
+}
+
+fn read_insert(
+    common: EntityCommon,
+    pairs: &[Pair<'_>],
+    warnings: &mut Vec<String>,
+) -> Result<Entity, ReadError> {
+    // An array of placements (MINSERT): the model holds one, so the
+    // rest would be lost in silence.
+    let columns = int(pairs, 70)?.unwrap_or(1);
+    let rows = int(pairs, 71)?.unwrap_or(1);
+    if columns > 1 || rows > 1 {
+        warnings.push(format!(
+            "MINSERT: an INSERT places its block as an array of {columns} columns and {rows} rows (groups 70 and 71); only its first placement is read"
+        ));
+    }
+    Ok(Entity::Insert(InsertEntity {
+        common,
+        block_name: name_ref(text(pairs, 2)),
+        insertion_point: point3(pairs, 10)?,
+        scale: Point3D {
+            x: num_or(pairs, 41, 1.0)?,
+            y: num_or(pairs, 42, 1.0)?,
+            z: num_or(pairs, 43, 1.0)?,
+        },
+        rotation: radians(pairs, 50)?,
+        attribs: Vec::new(),
+        extrusion: extrusion(pairs)?,
+    }))
+}
+
+/// A table is a block reference (AcDbBlockReference: its block, 2, and
+/// insertion point, 10) with the table's own part after the
+/// AcDbTable marker, which reuses group codes. The text format writes
+/// no scale for a table, so the block-reference part's 41-43 are
+/// read if present and are 1 otherwise; it writes a horizontal
+/// direction (the table part's 11) in place of a rotation, and the
+/// rotation is that direction's angle in the XY plane.
+fn read_acad_table(
+    common: EntityCommon,
+    pairs: &[Pair<'_>],
+    warnings: &mut Vec<String>,
+    table_style: &mut Option<String>,
+) -> Result<Entity, ReadError> {
+    let split = pairs
+        .iter()
+        .position(|p| p.code == 100 && p.value.trim() == "AcDbTable")
+        .unwrap_or(pairs.len());
+    let (reference, table) = pairs.split_at(split);
+    let rotation = match optional_point3(table, 11)? {
+        Some(d) if d.x != 0.0 || d.y != 0.0 => d.y.atan2(d.x),
+        _ => 0.0,
+    };
+    // The table's own flow direction is an override among its
+    // table-level groups, which come before the row heights (141);
+    // without one, the style it points at (342) says.
+    let table_level = &table[..table
+        .iter()
+        .position(|p| p.code == 141)
+        .unwrap_or(table.len())];
+    let flow = match int(table_level, 70)? {
+        Some(code) => {
+            let flow = TableFlow::from_code(code);
+            if flow.is_none() {
+                warnings.push(format!(
+                    "TABLE_FLOW: an ACAD_TABLE states a flow direction (group 70) of {code}, which the format does not define; its flow is not read"
+                ));
+            }
+            flow
+        }
+        None => {
+            *table_style = text(table, 342).map(|h| h.trim().to_ascii_uppercase());
+            None
+        }
+    };
+    Ok(Entity::AcadTable(AcadTableEntity {
+        common,
+        block_name: name_ref(text(reference, 2)),
+        insertion_point: point3(reference, 10)?,
+        scale: Point3D {
+            x: num_or(reference, 41, 1.0)?,
+            y: num_or(reference, 42, 1.0)?,
+            z: num_or(reference, 43, 1.0)?,
+        },
+        rotation,
+        grid: table_grid(table, warnings)?,
+        flow,
+    }))
+}
+
+fn read_dimension(
+    common: EntityCommon,
+    pairs: &[Pair<'_>],
+    type_name: &str,
+) -> Result<Entity, ReadError> {
+    let flag = int(pairs, 70)?;
+    let kind = dimension_kind(type_name, flag, pairs);
+    Ok(Entity::Dimension(DimensionEntity {
+        common,
+        block_name: name_ref(text(pairs, 2)),
+        kind,
+        measurement: num(pairs, 42)?,
+        text_override: text_override(text(pairs, 1)),
+        definition_point: Some(point3(pairs, 10)?),
+        text_midpoint: point2(pairs, 11)?,
+        points: DimensionPoints {
+            extension1: optional_point3(pairs, 13)?,
+            extension2: optional_point3(pairs, 14)?,
+            radial: optional_point3(pairs, 15)?,
+            arc: optional_point3(pairs, 16)?,
+        },
+        rotation: radians(pairs, 50)?,
+        text_rotation: radians(pairs, 53)?,
+        style_name: name_ref(text(pairs, 3)),
+        // Bit 64 of group 70 says which coordinate an ordinate dimension
+        // measures; on any other kind it means nothing.
+        ordinate_axis: (kind == Some(DimensionKind::Ordinate)).then(|| {
+            if flag.unwrap_or(0) & 64 != 0 {
+                OrdinateAxis::X
+            } else {
+                OrdinateAxis::Y
+            }
+        }),
+        style_overrides: Some(style_overrides(pairs)?),
+    }))
+}
+
+/// A feature control frame: its text is the frame's contents, symbol
+/// codes and all, as the file wrote it.
+fn read_tolerance(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    Ok(Entity::Tolerance(ToleranceEntity {
+        common,
+        insertion_point: point3(pairs, 10)?,
+        // The frame's height is its dimension style's; the record
+        // states one only in old files.
+        text_height: num(pairs, 40)?.filter(|h| *h != 0.0),
+        text_value: string(text(pairs, 1).unwrap_or("")),
+        // Written only when the frame is turned from the world x axis;
+        // absent, it is not turned. A zero vector is no direction.
+        direction: Some(optional_point3(pairs, 11)?.unwrap_or(Point3D {
+            x: 1.0,
+            y: 0.0,
+            z: 0.0,
+        }))
+        .filter(|d| d.x != 0.0 || d.y != 0.0 || d.z != 0.0),
+        style_name: name_ref(text(pairs, 3)),
+    }))
+}
+
+/// Each vertex writes its point (11), its segment's direction (12)
+/// and its miter (13), then its elements' parameters; the model
+/// carries the point and the miter.
+fn read_mline(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    Ok(Entity::MLine(MLineEntity {
+        common,
+        vertices: repeated_point3(pairs, 11)?
+            .into_iter()
+            .zip(repeated_point3(pairs, 13)?)
+            .map(|(point, miter_direction)| MLineVertex {
+                point,
+                miter_direction,
+            })
+            .collect(),
+        // 71 bit 2: closed.
+        closed: int(pairs, 71)?.is_some_and(|f| f & 2 != 0),
+        mlinestyle_name: name_ref(text(pairs, 2)),
+        scale: num(pairs, 40)?,
+    }))
+}
+
+fn read_wipeout(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    Ok(Entity::Wipeout(WipeoutEntity {
+        common,
+        boundary: wipeout_boundary(pairs)?,
+    }))
+}
+
+/// The frame as the file states it, the definition by its handle
+/// (resolved once the OBJECTS section is in), and the clip boundary
+/// through that frame, as a WIPEOUT's is.
+fn read_image(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    let insertion_point = point3(pairs, 10)?;
+    let u_vector = point3(pairs, 11)?;
+    let v_vector = point3(pairs, 12)?;
+    let size_pixels = Point2D {
+        x: num_or(pairs, 13, 0.0)?,
+        y: num_or(pairs, 23, 0.0)?,
+    };
+    Ok(Entity::Image(ImageEntity {
+        common,
+        insertion_point,
+        u_vector,
+        v_vector,
+        size_pixels,
+        definition: match text(pairs, 340).map(str::trim) {
+            Some(h) if !h.is_empty() && h != "0" => Ref::Unresolved(h.to_ascii_uppercase()),
+            _ => Ref::Absent,
+        },
+        display_flags: int(pairs, 70)?.and_then(|v| u16::try_from(v).ok()),
+        clipping: int(pairs, 280)?.map(|v| v != 0),
+        brightness: int(pairs, 281)?.and_then(|v| u8::try_from(v).ok()),
+        contrast: int(pairs, 282)?.and_then(|v| u8::try_from(v).ok()),
+        fade: int(pairs, 283)?.and_then(|v| u8::try_from(v).ok()),
+        clip_outside: int(pairs, 290)?.map(|v| v != 0),
+        boundary: clip_boundary(pairs, insertion_point, u_vector, v_vector, size_pixels)?,
+    }))
+}
+
+fn read_leader(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    Ok(Entity::Leader(LeaderEntity {
+        common,
+        vertices: repeated_point3(pairs, 10)?,
+        // Group 71 is a flag: drawn or not. A text drawing may omit it,
+        // and a value outside the two is not one this reader can read.
+        has_arrowhead: match int(pairs, 71)? {
+            Some(0) => Some(false),
+            Some(1) => Some(true),
+            _ => None,
+        },
+        // 0 straight, 1 spline. The format does not say what an absent
+        // group means here, so an absent one is nothing.
+        path_type: match int(pairs, 72)? {
+            Some(0) => Some(LeaderPath::Straight),
+            Some(1) => Some(LeaderPath::Spline),
+            _ => None,
+        },
+        // 0 text, 1 tolerance, 2 insert, 3 none -- and 3 is the value the
+        // format falls back to, so anything else reads as "nothing".
+        annotation: match int(pairs, 73)? {
+            Some(0) => LeaderAnnotation::MText,
+            Some(1) => LeaderAnnotation::Tolerance,
+            Some(2) => LeaderAnnotation::Insert,
+            _ => LeaderAnnotation::Nothing,
+        },
+        annotation_id: handle_ref(pairs, 340),
+        style_name: name_ref(text(pairs, 3)),
+        style_overrides: Some(style_overrides(pairs)?),
+    }))
+}
+
+fn read_ellipse(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    Ok(Entity::Ellipse(EllipseEntity {
+        common,
+        center: point3(pairs, 10)?,
+        major_axis_endpoint: point3(pairs, 11)?,
+        axis_ratio: num_or(pairs, 40, 0.0)?,
+        // Parameters of the ellipse, already in radians -- not the
+        // degrees ARC and TEXT write.
+        start_angle: num_or(pairs, 41, 0.0)?,
+        end_angle: num_or(pairs, 42, std::f64::consts::TAU)?,
+        extrusion: extrusion(pairs)?,
+    }))
+}
+
+fn read_mtext(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    Ok(Entity::MText(MTextEntity {
+        common,
+        insertion_point: point3(pairs, 10)?,
+        text: mtext_string(pairs),
+        text_height: num_or(pairs, 40, 0.0)?,
+        // The rotation is written as the text's X-axis direction (11),
+        // or -- by older writers -- as an angle (50); neither means
+        // the text is not turned.
+        rotation: match optional_point3(pairs, 11)? {
+            Some(d) => d.y.atan2(d.x),
+            None => radians(pairs, 50)?,
+        },
+        // A fraction of the default spacing: absent is 1.
+        line_spacing_factor: num_or(pairs, 44, 1.0)?,
+        // No box to wrap in: absent is 0.
+        reference_width: num_or(pairs, 41, 0.0)?,
+        // A measurement the writing application made; a zero measures no
+        // text.
+        extents_width: num(pairs, 42)?.filter(|w| *w != 0.0),
+        extents_height: num(pairs, 43)?.filter(|h| *h != 0.0),
+        style_name: name_ref(text(pairs, 7)),
+        attachment: int(pairs, 71)?.and_then(MTextAttachment::from_code),
+    }))
+}
+
+fn read_spline(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    // Bits 1 closed, 2 periodic. No group 70 is a record that does
+    // not say, which is not the same as saying no.
+    let flags = int(pairs, 70)?;
+    Ok(Entity::Spline(SplineEntity {
+        common,
+        degree: u32::try_from(int(pairs, 71)?.unwrap_or(0)).unwrap_or(0),
+        closed: flags.map(|f| f & 1 != 0),
+        periodic: flags.map(|f| f & 2 != 0),
+        knots: repeated_number(pairs, 40)?,
+        // Written for every control point or for none; none means
+        // every weight is 1.
+        weights: repeated_number(pairs, 41)?,
+        fit_points: repeated_point3(pairs, 11)?,
+        control_points: repeated_point3(pairs, 10)?,
+        start_tangent: optional_point3(pairs, 12)?,
+        end_tangent: optional_point3(pairs, 13)?,
+    }))
+}
+
+/// The leader roots, each with the lines that run to it, and what
+/// they point out.
+fn read_multileader(
+    common: EntityCommon,
+    pairs: &[Pair<'_>],
+    line_type_groups: &mut Option<LineTypeGroups>,
+) -> Result<Entity, ReadError> {
+    let (groups, arrow_size) = multileader_line_groups(pairs)?;
+    *line_type_groups = Some(groups);
+    Ok(Entity::MultiLeader(MultiLeaderEntity {
+        common,
+        leaders: multileader_leaders(pairs)?,
+        // Settled by the reader once the styles are read.
+        line_type: None,
+        arrow_size,
+        content: multileader_content(pairs)?,
+    }))
+}
+
+/// A light: where it is, what it aims at (11 -- a point light states
+/// it too), and which kind it is. Whether it aims follows from the
+/// kind and is left to whoever needs it.
+fn read_light(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    let position = point3(pairs, 10)?;
+    Ok(Entity::Light(LightEntity {
+        common,
+        position,
+        // The same stand-in the other reader uses when there is none.
+        target: optional_point3(pairs, 11)?.unwrap_or(position),
+        light_type: match int(pairs, 70)? {
+            Some(1) => Some(LightType::Distant),
+            Some(2) => Some(LightType::Point),
+            Some(3) => Some(LightType::Spot),
+            _ => None,
+        },
+    }))
+}
+
+fn read_ray(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    Ok(Entity::Ray(RayEntity {
+        common,
+        point: point3(pairs, 10)?,
+        vector: point3(pairs, 11)?,
+    }))
+}
+
+fn read_xline(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    Ok(Entity::XLine(RayEntity {
+        common,
+        point: point3(pairs, 10)?,
+        vector: point3(pairs, 11)?,
+    }))
+}
+
+/// A paper-space viewport: its frame on the sheet, and the view of
+/// the model it shows through it.
+fn read_viewport(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, ReadError> {
+    Ok(Entity::Viewport(ViewportEntity {
+        common,
+        center: point3(pairs, 10)?,
+        width: num_or(pairs, 40, 0.0)?,
+        height: num_or(pairs, 41, 0.0)?,
+        view: viewport_view(pairs)?,
+        on: viewport_on(pairs)?,
+        viewport_id: int(pairs, 69)?.map(|id| id as i32),
+        // The frozen layers by their LAYER records' handles (341, or 331
+        // as a DXF from R2004 on writes them), resolved to names once the
+        // tables are in.
+        frozen_layers: pairs
+            .iter()
+            .filter(|p| p.code == 341 || p.code == 331)
+            .map(|p| Ref::Unresolved(p.value.trim().to_ascii_uppercase()))
+            .collect(),
+    }))
+}
+
+fn read_hatch(
+    common: EntityCommon,
+    pairs: &[Pair<'_>],
+    warnings: &mut Vec<String>,
+) -> Result<Entity, ReadError> {
+    let hatch = crate::hatch::read(pairs, warnings)?;
+    Ok(Entity::Hatch(HatchEntity {
+        common,
+        boundary_paths: hatch.boundary_paths,
+        solid_fill: hatch.solid_fill,
+        gradient: hatch.gradient,
+        pattern_lines: hatch.pattern_lines,
+        elevation: hatch.elevation,
+        extrusion: hatch.extrusion,
+        style: hatch.style,
+    }))
+}
+
+/// The ACIS body's wireframe, when the record holds the body's text
+/// (up to R2010). From R2013 the body is in the ACDSDATA section, as
+/// SAB bytes: the entity is kept UNKNOWN here, and the reader turns it
+/// into its solid once that section has been read.
+fn read_solid3d(
+    common: EntityCommon,
+    pairs: &[Pair<'_>],
+    type_name: &str,
+) -> Result<Entity, ReadError> {
+    let sat = crate::acis::sat_text(pairs).unwrap_or_default();
+    let (wireframe_edges, skipped_edges) = uncad_model::acis::wireframe(&sat);
+    let solid = Solid3DEntity {
+        common,
+        wireframe_edges,
+        skipped_edges,
+    };
+    Ok(if type_name == "REGION" {
+        Entity::Region(solid)
+    } else {
+        Entity::Solid3D(solid)
+    })
 }
 
 fn optional_point3(pairs: &[Pair<'_>], x: i32) -> Result<Option<Point3D>, ReadError> {
