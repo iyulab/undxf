@@ -7,6 +7,11 @@ bumps the minor version.
 
 ## [Unreleased]
 
+### Added
+
+- A dimension style carries `DIMGAP` (DXF 147): a style that does not state it reads as the format's 0.09,
+  and a negative value (a boxed text, as a basic dimension is drawn) is kept as stated.
+
 ## [0.9.0] - 2026-10-30
 
 ### Changed

@@ -551,6 +551,8 @@ impl<'a, 'b> Reader<'a, 'b> {
                             dimunit.1
                         },
                         arc_symbol: since_r2000(integer(90)?, 0).and_then(ArcSymbol::from_code),
+                        // DIMGAP: unwritten is the format's 0.09 (positive).
+                        text_gap: Some(number(147)?.unwrap_or(0.09)),
                     };
                     self.dim_styles.insert(name, style);
                 }
