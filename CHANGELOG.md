@@ -16,7 +16,8 @@ bumps the minor version.
 
 - Text after the `0/EOF` pair no longer makes a drawing unreadable. The format ends at the first `0/EOF`, so
   nothing after it is parsed; when it holds more than blank lines the read says
-  `TEXT_AFTER_EOF: <n> line(s) after the 0/EOF on line <l> are not read`.
+  `TEXT_AFTER_EOF: <n> line(s) after the 0/EOF on line <l> are not read`. A comment there
+  (group 999 and its text) is the format's own free text and is not counted.
 - A handle group (5) written with no value reads as an entity with no handle, the same as no group, and says
   `EMPTY_HANDLE`. A handle that is text but not a hexadecimal number is still refused.
 

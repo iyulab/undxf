@@ -107,7 +107,17 @@ pub fn pairs_until_eof(text: &str) -> Result<(Vec<Pair<'_>>, Option<AfterEof>), 
         let value = value_line.strip_suffix('\r').unwrap_or(value_line);
         out.push(Pair { code, value, line });
         if code == 0 && value == "EOF" {
-            let rest = lines.filter(|(_, l)| !l.trim().is_empty()).count();
+            // Text there that is not blank: a comment (group 999 and its text)
+            // is the format's own way to carry free text anywhere, so it is
+            // not counted -- what is left is lines the format has no place for.
+            let mut rest = 0;
+            while let Some((_, l)) = lines.next() {
+                if l.trim() == "999" {
+                    lines.next();
+                } else if !l.trim().is_empty() {
+                    rest += 1;
+                }
+            }
             if rest > 0 {
                 after = Some(AfterEof {
                     eof_line: line,
@@ -146,6 +156,11 @@ mod tests {
         // Blank lines after it are not text.
         let (_, after) = pairs_until_eof("  0\nEOF\n\n\r\n").unwrap();
         assert_eq!(after, None);
+        // A comment (group 999) is the format's own free text: not counted.
+        let (_, after) = pairs_until_eof("  0\nEOF\n999\nwritten by a test\n").unwrap();
+        assert_eq!(after, None);
+        let (_, after) = pairs_until_eof("  0\nEOF\n999\nnote\nstray\n").unwrap();
+        assert_eq!(after.map(|a| a.lines), Some(1));
     }
 
     #[test]

@@ -31,6 +31,19 @@ fn text_after_the_eof_pair_is_not_read_and_is_reported() {
 }
 
 #[test]
+fn a_comment_after_the_eof_pair_is_not_text_the_format_has_no_place_for() {
+    let db = read_str(&drawing(LINE, "999\nwritten by a tool\n")).unwrap();
+    assert_eq!(db.entities.len(), 1);
+    assert!(
+        !warnings(&db)
+            .iter()
+            .any(|w| w.starts_with("TEXT_AFTER_EOF")),
+        "{:?}",
+        warnings(&db)
+    );
+}
+
+#[test]
 fn blank_lines_after_the_eof_pair_say_nothing() {
     let db = read_str(&drawing(LINE, "\n\r\n  \n")).unwrap();
     assert_eq!(db.entities.len(), 1);
