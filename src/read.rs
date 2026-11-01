@@ -69,6 +69,14 @@ fn binary() -> ReadError {
     }
 }
 
+/// A table record's handle (group 5): upper-case, and none when the record
+/// states none or states it empty -- an empty handle keys nothing, so a
+/// reference with no value cannot find it.
+fn record_handle(record: &[Pair<'_>]) -> Option<String> {
+    let handle = record.iter().find(|p| p.code == 5)?.value.trim();
+    (!handle.is_empty()).then(|| handle.to_ascii_uppercase())
+}
+
 fn read_text(text: &str, mut warnings: Vec<String>) -> Result<(CadDatabase, Header), ReadError> {
     if text.starts_with("AutoCAD Binary DXF") {
         return Err(binary());
@@ -102,6 +110,7 @@ fn read_text(text: &str, mut warnings: Vec<String>) -> Result<(CadDatabase, Head
         blocks: BTreeMap::new(),
         block_spellings: BTreeMap::new(),
         warnings,
+        handle_notes: BTreeMap::new(),
         version: None,
         header: Header::default(),
     };
@@ -156,6 +165,9 @@ struct Reader<'a, 'b> {
     /// What the decoding reported, then what each entity reported, in the
     /// order they were read.
     warnings: Vec<String>,
+    /// How many entities had a handle the reader could not use, by kind, and
+    /// the first warning of each: said once for the file, not once an entity.
+    handle_notes: BTreeMap<&'static str, (u32, String)>,
     /// `$ACADVER` from the HEADER section (`AC1015` for R2000), when the file
     /// has one. It says which variables the file's format has at all.
     version: Option<String>,
@@ -164,6 +176,24 @@ struct Reader<'a, 'b> {
 }
 
 impl<'a, 'b> Reader<'a, 'b> {
+    /// Keeps what an entity reported. The warnings about a handle group are
+    /// one line for the file -- the first, and how many there were -- so a file
+    /// that has one on every entity does not make a warning for each.
+    fn take_warnings(&mut self, warnings: Vec<String>) {
+        for w in warnings {
+            let kind = [entity::EMPTY_HANDLE, entity::HANDLE_OUT_OF_RANGE]
+                .into_iter()
+                .find(|k| w.starts_with(&format!("{k}:")));
+            match kind {
+                Some(k) => {
+                    let n = self.handle_notes.entry(k).or_insert((0, w));
+                    n.0 += 1;
+                }
+                None => self.warnings.push(w),
+            }
+        }
+    }
+
     fn peek(&self) -> Option<&Pair<'a>> {
         self.pairs.get(self.pos)
     }
@@ -344,11 +374,7 @@ impl<'a, 'b> Reader<'a, 'b> {
                 }
                 (0, "MLEADERSTYLE") => {
                     let record = self.record();
-                    if let Some(handle) = record
-                        .iter()
-                        .find(|p| p.code == 5)
-                        .map(|p| p.value.trim().to_ascii_uppercase())
-                    {
+                    if let Some(handle) = record_handle(record) {
                         // 173, not the style's 170 (its content type).
                         self.mleader_styles
                             .insert(handle, value::<i64>(record, 173)?);
@@ -356,11 +382,7 @@ impl<'a, 'b> Reader<'a, 'b> {
                 }
                 (0, "TABLESTYLE") => {
                     let record = self.record();
-                    if let Some(handle) = record
-                        .iter()
-                        .find(|p| p.code == 5)
-                        .map(|p| p.value.trim().to_ascii_uppercase())
-                    {
+                    if let Some(handle) = record_handle(record) {
                         let flow = value::<i64>(record, 70)?.and_then(TableFlow::from_code);
                         self.table_styles.insert(handle, flow);
                     }
@@ -417,9 +439,8 @@ impl<'a, 'b> Reader<'a, 'b> {
                     let Some(layer) = layer(record)? else {
                         continue; // the table's own header record carries no name
                     };
-                    if let Some(handle) = record.iter().find(|p| p.code == 5) {
-                        self.layer_handles
-                            .insert(handle.value.trim().to_ascii_uppercase(), layer.name.clone());
+                    if let Some(handle) = record_handle(record) {
+                        self.layer_handles.insert(handle, layer.name.clone());
                     }
                     self.layers.insert(layer.name.clone(), layer);
                 }
@@ -450,16 +471,14 @@ impl<'a, 'b> Reader<'a, 'b> {
                             self.linetypes.insert(name);
                         }
                         "STYLE" => {
-                            if let Some(handle) = record.iter().find(|p| p.code == 5) {
-                                self.text_style_handles
-                                    .insert(handle.value.trim().to_ascii_uppercase(), name.clone());
+                            if let Some(handle) = record_handle(record) {
+                                self.text_style_handles.insert(handle, name.clone());
                             }
                             self.text_styles.insert(name);
                         }
                         _ => {
-                            if let Some(handle) = record.iter().find(|p| p.code == 5) {
-                                self.block_record_handles
-                                    .insert(handle.value.trim().to_ascii_uppercase(), name);
+                            if let Some(handle) = record_handle(record) {
+                                self.block_record_handles.insert(handle, name);
                             }
                         }
                     }
@@ -660,7 +679,7 @@ impl<'a, 'b> Reader<'a, 'b> {
             return self.polyline(record);
         }
         let read = entity::read(head.value, record, self.ordinal)?;
-        self.warnings.extend(read.warnings);
+        self.take_warnings(read.warnings);
         let mut entity = read.entity;
         if let Some(groups) = read.line_type_groups {
             self.line_type_groups.insert(entity.common().id, groups);
@@ -689,7 +708,7 @@ impl<'a, 'b> Reader<'a, 'b> {
         let record = self.record();
         self.ordinal += 1;
         let read = entity::read(head.value, record, self.ordinal)?;
-        self.warnings.extend(read.warnings);
+        self.take_warnings(read.warnings);
         Ok(read.entity)
     }
 
@@ -715,6 +734,7 @@ impl<'a, 'b> Reader<'a, 'b> {
         let Entity::Unknown { common, .. } = read.entity else {
             unreachable!("POLYLINE is read as Unknown by entity::read")
         };
+        self.take_warnings(read.warnings);
         // The widths a vertex that states none of its own takes: the
         // POLYLINE record's own 40 and 41.
         let default_start = entity::num_or(record, 40, 0.0)?;
@@ -856,11 +876,19 @@ impl<'a, 'b> Reader<'a, 'b> {
             table_style_refs,
             acis_bodies,
             mut blocks,
-            warnings,
+            mut warnings,
+            handle_notes,
             version,
             header,
             ..
         } = self;
+        for (_, (count, first)) in handle_notes {
+            warnings.push(if count > 1 {
+                format!("{first} ({} more like it)", count - 1)
+            } else {
+                first
+            });
+        }
         let block_names: Vec<String> = blocks.keys().cloned().collect();
         for layer in layers.values_mut() {
             resolve_name(&mut layer.linetype, |n| linetypes.contains(n));

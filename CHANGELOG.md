@@ -19,7 +19,13 @@ bumps the minor version.
   `TEXT_AFTER_EOF: <n> line(s) after the 0/EOF on line <l> are not read`. A comment there
   (group 999 and its text) is the format's own free text and is not counted.
 - A handle group (5) written with no value reads as an entity with no handle, the same as no group, and says
-  `EMPTY_HANDLE`. A handle that is text but not a hexadecimal number is still refused.
+  `EMPTY_HANDLE` -- once for the file, with how many entities it holds, not once for each. A handle that is
+  text but not a hexadecimal number is still refused. A handle that is not below 2^63, where the IDs of
+  handle-less entities start, reads as no handle too and says `HANDLE_OUT_OF_RANGE`. The first handle group
+  of an entity is the one read and the one reported. A table record whose handle is empty is not keyed by it,
+  and a reference written with no value (a viewport's frozen layer, a multileader's style, a table's style)
+  points at nothing instead of finding that record. A POLYLINE's warnings reach the file. NUL bytes after
+  the `0/EOF` pair are padding, like the DOS end-of-file byte.
 
 ### Changed
 

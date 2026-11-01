@@ -24,6 +24,20 @@ use uncad_model::model::{
 /// same way.
 const HANDLELESS_ID_BASE: u64 = 1 << 63;
 
+/// What the reader says about an entity's handle group, when it has to.
+enum HandleNote {
+    /// The group is there with no value.
+    Empty { line: usize },
+    /// The value is not below 2^63, where the IDs of handle-less entities start.
+    OutOfRange { line: usize },
+}
+
+/// The start of the warning for a handle group with no value.
+pub(crate) const EMPTY_HANDLE: &str = "EMPTY_HANDLE";
+/// The start of the warning for a handle that cannot be told from a
+/// handle-less entity's ID.
+pub(crate) const HANDLE_OUT_OF_RANGE: &str = "HANDLE_OUT_OF_RANGE";
+
 /// Which space an entity of the ENTITIES section belongs to (DXF 67).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Space {
@@ -200,26 +214,43 @@ fn radians(pairs: &[Pair<'_>], code: i32) -> Result<f64, ReadError> {
 /// A handle group with no value states no handle -- the same fact as no
 /// group -- so the entity is read as handle-less, and the caller says so.
 /// Any other text that is not a hexadecimal number is still an error.
-fn common(pairs: &[Pair<'_>], ordinal: u64) -> Result<(EntityCommon, Option<usize>), ReadError> {
-    let empty_handle = pairs
-        .iter()
-        .find(|p| p.code == 5 && p.value.trim().is_empty())
-        .map(|p| p.line);
-    let handle = text(pairs, 5).filter(|h| !h.trim().is_empty());
+fn common(
+    pairs: &[Pair<'_>],
+    ordinal: u64,
+) -> Result<(EntityCommon, Option<HandleNote>), ReadError> {
+    // The first handle group decides, the same one for what is read from it
+    // and for what is said about it.
+    let first = pairs.iter().find(|p| p.code == 5);
+    let mut note = None;
+    let handle = match first {
+        Some(p) if p.value.trim().is_empty() => {
+            note = Some(HandleNote::Empty { line: p.line });
+            None
+        }
+        Some(p) => Some(p.value),
+        None => None,
+    };
+    let handleless = || (EntityId::new(HANDLELESS_ID_BASE | ordinal), Ref::Absent);
     let (id, source_handle) = match handle {
         Some(h) => {
-            let line = pairs.iter().find(|p| p.code == 5).map_or(0, |p| p.line);
+            let line = first.map_or(0, |p| p.line);
             let value = u64::from_str_radix(h.trim(), 16).map_err(|_| ReadError::BadNumber {
                 line,
                 code: 5,
                 text: h.to_string(),
             })?;
-            (
-                EntityId::new(value),
-                Ref::Resolved(h.trim().to_ascii_uppercase()),
-            )
+            if value >= HANDLELESS_ID_BASE {
+                // A handle this large would be the ID of a handle-less entity.
+                note = Some(HandleNote::OutOfRange { line });
+                handleless()
+            } else {
+                (
+                    EntityId::new(value),
+                    Ref::Resolved(h.trim().to_ascii_uppercase()),
+                )
+            }
         }
-        None => (EntityId::new(HANDLELESS_ID_BASE | ordinal), Ref::Absent),
+        None => handleless(),
     };
     // The layer is carried by name here and resolved against the LAYER
     // table by the reader once every table is in.
@@ -246,7 +277,7 @@ fn common(pairs: &[Pair<'_>], ordinal: u64) -> Result<(EntityCommon, Option<usiz
         lineweight: int(pairs, 370)?.map(|w| w as i16),
         transparency: int(pairs, 440)?.map(|t| t as u32),
     };
-    Ok((common, empty_handle))
+    Ok((common, note))
 }
 
 /// An entity's linetype (DXF 6): absent, or the pseudo-names BYLAYER and
@@ -433,7 +464,9 @@ fn multileader_line_groups(pairs: &[Pair<'_>]) -> Result<(LineTypeGroups, Option
             },
             (90, _) if groups.flags.is_none() => groups.flags = Some(flags(p)?),
             (170, _) if groups.entity_type.is_none() => groups.entity_type = Some(integer(p)?),
-            (340, _) if groups.style.is_none() => groups.style = Some(value.to_ascii_uppercase()),
+            (340, _) if groups.style.is_none() && !value.trim().is_empty() => {
+                groups.style = Some(value.to_ascii_uppercase())
+            }
             _ => {}
         }
     }
@@ -445,7 +478,7 @@ fn multileader_line_groups(pairs: &[Pair<'_>]) -> Result<(LineTypeGroups, Option
 pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, ReadError> {
     let pairs = own_part(pairs);
     let head = common_part(pairs);
-    let (common, empty_handle) = common(head, ordinal)?;
+    let (common, handle_note) = common(head, ordinal)?;
     let space = match int(head, 67)? {
         Some(1) => Space::Paper,
         _ => Space::Model,
@@ -454,10 +487,14 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
     let mut line_type_groups = None;
     let mut table_style = None;
     let mut warnings = missing_required_groups(type_name, pairs);
-    if let Some(line) = empty_handle {
-        warnings.push(format!(
-            "EMPTY_HANDLE: the handle group (5) of this {type_name} on line {line} has no value; it is read as an entity with no handle"
-        ));
+    match handle_note {
+        Some(HandleNote::Empty { line }) => warnings.push(format!(
+            "{EMPTY_HANDLE}: the handle group (5) of this {type_name} on line {line} has no value; it is read as an entity with no handle"
+        )),
+        Some(HandleNote::OutOfRange { line }) => warnings.push(format!(
+            "{HANDLE_OUT_OF_RANGE}: the handle group (5) of this {type_name} on line {line} is not below 2^63; it is read as an entity with no handle"
+        )),
+        None => {}
     }
     let entity = match type_name {
         "LINE" => read_line(common, pairs)?,
@@ -1020,7 +1057,11 @@ fn multileader_content(pairs: &[Pair<'_>]) -> Result<Option<MultiLeaderContent>,
     let at = |code: i32| found.get(&code).map(|&i| &pairs[i]);
     let num_at = |code: i32| at(code).map(number).transpose();
     let point = |code: i32| found.get(&code).map(|&i| point_at(i, code)).transpose();
-    let handle = |code: i32| at(code).map(|p| Ref::Unresolved(p.value.trim().to_ascii_uppercase()));
+    let handle = |code: i32| {
+        at(code)
+            .filter(|p| !p.value.trim().is_empty())
+            .map(|p| Ref::Unresolved(p.value.trim().to_ascii_uppercase()))
+    };
     let set =
         |code: i32| -> Result<bool, ReadError> { Ok(num_at(code)?.is_some_and(|v| v != 0.0)) };
     const X: Point3D = Point3D {
@@ -1346,7 +1387,9 @@ fn read_acad_table(
             flow
         }
         None => {
-            *table_style = text(table, 342).map(|h| h.trim().to_ascii_uppercase());
+            *table_style = text(table, 342)
+                .map(|h| h.trim().to_ascii_uppercase())
+                .filter(|h| !h.is_empty());
             None
         }
     };
@@ -1645,7 +1688,7 @@ fn read_viewport(common: EntityCommon, pairs: &[Pair<'_>]) -> Result<Entity, Rea
         // tables are in.
         frozen_layers: pairs
             .iter()
-            .filter(|p| p.code == 341 || p.code == 331)
+            .filter(|p| (p.code == 341 || p.code == 331) && !p.value.trim().is_empty())
             .map(|p| Ref::Unresolved(p.value.trim().to_ascii_uppercase()))
             .collect(),
     }))

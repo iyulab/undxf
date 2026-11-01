@@ -87,7 +87,7 @@ pub fn pairs(text: &str) -> Result<Vec<Pair<'_>>, ReadError> {
 pub fn pairs_until_eof(text: &str) -> Result<(Vec<Pair<'_>>, Option<AfterEof>), ReadError> {
     // A DOS-era file ends with a SUB (0x1A) end-of-file marker after its
     // last line; it is not a group code.
-    let text = text.trim_end_matches(['\u{1a}', '\n', '\r']);
+    let text = text.trim_end_matches(['\u{1a}', '\n', '\r', '\0']);
     let mut out = Vec::new();
     let mut after = None;
     let mut lines = text.split('\n').enumerate().peekable();
