@@ -4,7 +4,7 @@
 use crate::decode::string;
 use crate::entity::{self, Space};
 use crate::header::{Header, HeaderGroup};
-use crate::pairs::{pairs, Pair, ReadError};
+use crate::pairs::{pairs_until_eof, Pair, ReadError};
 use std::collections::{BTreeMap, BTreeSet};
 use uncad_model::model::{
     Entity, EntityCommon, EntityId, EntityLinetype, LeaderLineType, LwPolylineEntity,
@@ -69,11 +69,17 @@ fn binary() -> ReadError {
     }
 }
 
-fn read_text(text: &str, warnings: Vec<String>) -> Result<(CadDatabase, Header), ReadError> {
+fn read_text(text: &str, mut warnings: Vec<String>) -> Result<(CadDatabase, Header), ReadError> {
     if text.starts_with("AutoCAD Binary DXF") {
         return Err(binary());
     }
-    let pairs = pairs(text)?;
+    let (pairs, after_eof) = pairs_until_eof(text)?;
+    if let Some(after) = after_eof {
+        warnings.push(format!(
+            "TEXT_AFTER_EOF: {} line(s) after the 0/EOF on line {} are not read",
+            after.lines, after.eof_line
+        ));
+    }
     let mut reader = Reader {
         pairs: &pairs,
         pos: 0,

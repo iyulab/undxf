@@ -194,9 +194,19 @@ fn radians(pairs: &[Pair<'_>], code: i32) -> Result<f64, ReadError> {
     Ok(num_or(pairs, code, 0.0)?.to_radians())
 }
 
-/// The `common` block of an entity. `ordinal` numbers handle-less entities.
-fn common(pairs: &[Pair<'_>], ordinal: u64) -> Result<EntityCommon, ReadError> {
-    let (id, source_handle) = match text(pairs, 5) {
+/// The `common` block of an entity, and the line of a handle group (5) that
+/// is written empty. `ordinal` numbers handle-less entities.
+///
+/// A handle group with no value states no handle -- the same fact as no
+/// group -- so the entity is read as handle-less, and the caller says so.
+/// Any other text that is not a hexadecimal number is still an error.
+fn common(pairs: &[Pair<'_>], ordinal: u64) -> Result<(EntityCommon, Option<usize>), ReadError> {
+    let empty_handle = pairs
+        .iter()
+        .find(|p| p.code == 5 && p.value.trim().is_empty())
+        .map(|p| p.line);
+    let handle = text(pairs, 5).filter(|h| !h.trim().is_empty());
+    let (id, source_handle) = match handle {
         Some(h) => {
             let line = pairs.iter().find(|p| p.code == 5).map_or(0, |p| p.line);
             let value = u64::from_str_radix(h.trim(), 16).map_err(|_| ReadError::BadNumber {
@@ -219,7 +229,7 @@ fn common(pairs: &[Pair<'_>], ordinal: u64) -> Result<EntityCommon, ReadError> {
     };
     let color_index = int(pairs, 62)?.map_or(256, |c| c as i16);
     let true_color = int(pairs, 420)?.map(|c| (c as u32) & 0xff_ffff);
-    Ok(EntityCommon {
+    let common = EntityCommon {
         id,
         origin: Origin::Vector,
         confidence: Confidence::High,
@@ -235,7 +245,8 @@ fn common(pairs: &[Pair<'_>], ordinal: u64) -> Result<EntityCommon, ReadError> {
         // drawing's version is known to have the property (`Reader::finish`).
         lineweight: int(pairs, 370)?.map(|w| w as i16),
         transparency: int(pairs, 440)?.map(|t| t as u32),
-    })
+    };
+    Ok((common, empty_handle))
 }
 
 /// An entity's linetype (DXF 6): absent, or the pseudo-names BYLAYER and
@@ -434,7 +445,7 @@ fn multileader_line_groups(pairs: &[Pair<'_>]) -> Result<(LineTypeGroups, Option
 pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, ReadError> {
     let pairs = own_part(pairs);
     let head = common_part(pairs);
-    let common = common(head, ordinal)?;
+    let (common, empty_handle) = common(head, ordinal)?;
     let space = match int(head, 67)? {
         Some(1) => Space::Paper,
         _ => Space::Model,
@@ -443,6 +454,11 @@ pub fn read(type_name: &str, pairs: &[Pair<'_>], ordinal: u64) -> Result<Read, R
     let mut line_type_groups = None;
     let mut table_style = None;
     let mut warnings = missing_required_groups(type_name, pairs);
+    if let Some(line) = empty_handle {
+        warnings.push(format!(
+            "EMPTY_HANDLE: the handle group (5) of this {type_name} on line {line} has no value; it is read as an entity with no handle"
+        ));
+    }
     let entity = match type_name {
         "LINE" => read_line(common, pairs)?,
         "CIRCLE" => read_circle(common, pairs)?,

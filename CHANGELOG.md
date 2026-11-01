@@ -12,6 +12,14 @@ bumps the minor version.
 - A dimension style carries `DIMGAP` (DXF 147): a style that does not state it reads as the format's 0.09,
   and a negative value (a boxed text, as a basic dimension is drawn) is kept as stated.
 
+### Fixed
+
+- Text after the `0/EOF` pair no longer makes a drawing unreadable. The format ends at the first `0/EOF`, so
+  nothing after it is parsed; when it holds more than blank lines the read says
+  `TEXT_AFTER_EOF: <n> line(s) after the 0/EOF on line <l> are not read`.
+- A handle group (5) written with no value reads as an entity with no handle, the same as no group, and says
+  `EMPTY_HANDLE`. A handle that is text but not a hexadecimal number is still refused.
+
 ### Changed
 
 - **Breaking in what it answers:** an ACAD_TABLE with a cell whose text is not read -- a value of a kind other

@@ -63,13 +63,33 @@ impl std::fmt::Display for ReadError {
 
 impl std::error::Error for ReadError {}
 
+/// Text that follows a drawing's `0/EOF`. The format ends at that pair, so
+/// what comes after is not read -- and is reported, because a file that
+/// carries more than blank lines there was written or copied with
+/// something appended.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AfterEof {
+    /// 1-based line of the `0` of the `0/EOF` pair.
+    pub eof_line: usize,
+    /// How many lines after it are not blank.
+    pub lines: usize,
+}
+
 /// Every pair of the text, in order. A value keeps its bytes as written
 /// except for the line ending; a group code line is trimmed.
 pub fn pairs(text: &str) -> Result<Vec<Pair<'_>>, ReadError> {
+    pairs_until_eof(text).map(|(pairs, _)| pairs)
+}
+
+/// The pairs up to and including the first `0/EOF`, and what follows it.
+/// Nothing after the `0/EOF` is parsed, so text there never makes the file
+/// unreadable.
+pub fn pairs_until_eof(text: &str) -> Result<(Vec<Pair<'_>>, Option<AfterEof>), ReadError> {
     // A DOS-era file ends with a SUB (0x1A) end-of-file marker after its
     // last line; it is not a group code.
     let text = text.trim_end_matches(['\u{1a}', '\n', '\r']);
     let mut out = Vec::new();
+    let mut after = None;
     let mut lines = text.split('\n').enumerate().peekable();
     while let Some((i, code_line)) = lines.next() {
         let line = i + 1;
@@ -86,8 +106,18 @@ pub fn pairs(text: &str) -> Result<Vec<Pair<'_>>, ReadError> {
         };
         let value = value_line.strip_suffix('\r').unwrap_or(value_line);
         out.push(Pair { code, value, line });
+        if code == 0 && value == "EOF" {
+            let rest = lines.filter(|(_, l)| !l.trim().is_empty()).count();
+            if rest > 0 {
+                after = Some(AfterEof {
+                    eof_line: line,
+                    lines: rest,
+                });
+            }
+            break;
+        }
     }
-    Ok(out)
+    Ok((out, after))
 }
 
 #[cfg(test)]
@@ -100,6 +130,22 @@ mod tests {
         assert_eq!(p.len(), 2);
         assert_eq!((p[0].code, p[0].value, p[0].line), (0, "SECTION", 1));
         assert_eq!((p[1].code, p[1].value, p[1].line), (1, "  hello ", 3));
+    }
+
+    #[test]
+    fn nothing_after_the_eof_pair_is_parsed_and_the_lines_there_are_counted() {
+        let (p, after) = pairs_until_eof("  0\nEOF\nignore\ninvalid\n\n  7\nx\n").unwrap();
+        assert_eq!(p.len(), 1);
+        assert_eq!(
+            after,
+            Some(AfterEof {
+                eof_line: 1,
+                lines: 4
+            })
+        );
+        // Blank lines after it are not text.
+        let (_, after) = pairs_until_eof("  0\nEOF\n\n\r\n").unwrap();
+        assert_eq!(after, None);
     }
 
     #[test]
