@@ -7,10 +7,22 @@ bumps the minor version.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-02
+
 ### Added
 
 - A dimension style carries `DIMGAP` (DXF 147): a style that does not state it reads as the format's 0.09,
   and a negative value (a boxed text, as a basic dimension is drawn) is kept as stated.
+
+### Changed
+
+- **Breaking in what it answers:** an ACAD_TABLE with a cell whose text is not read -- a value of a kind other
+  than a string, or a text continued over several groups (2, 3, 303) -- no longer leaves that cell empty in a
+  grid that is otherwise there. The table has no grid, and one `TABLE_CELL_TEXT` warning says how many cells
+  were not read. A grid that lists such a cell as empty would be read as a table with nothing there, so a sum
+  or a count over it would pass over the cell without saying so. A table whose cells are all read is unchanged.
+
+- Built on `uncad-model` 0.11.0.
 
 ### Fixed
 
@@ -26,14 +38,6 @@ bumps the minor version.
   and a reference written with no value (a viewport's frozen layer, a multileader's style, a table's style)
   points at nothing instead of finding that record. A POLYLINE's warnings reach the file. NUL bytes after
   the `0/EOF` pair are padding, like the DOS end-of-file byte.
-
-### Changed
-
-- **Breaking in what it answers:** an ACAD_TABLE with a cell whose text is not read -- a value of a kind other
-  than a string, or a text continued over several groups (2, 3, 303) -- no longer leaves that cell empty in a
-  grid that is otherwise there. The table has no grid, and one `TABLE_CELL_TEXT` warning says how many cells
-  were not read. A grid that lists such a cell as empty would be read as a table with nothing there, so a sum
-  or a count over it would pass over the cell without saying so. A table whose cells are all read is unchanged.
 
 ## [0.9.0] - 2026-10-30
 
