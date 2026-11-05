@@ -7,6 +7,8 @@ bumps the minor version.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-05
+
 ### Changed
 
 - **Breaking:** the models this crate returns carry entity IDs as decimal strings in their JSON form
@@ -14,6 +16,8 @@ bumps the minor version.
   beyond moving `uncad-model` and this crate to the new versions together. A stored document that holds
   an ID as a number is refused when read back; quote the ID values to migrate it.
 - The G25 golden copy carries four more dimension texts, and the golden copies record IDs as strings.
+
+- Built on `uncad-model` 0.12.0.
 
 ## [0.10.0] - 2026-11-02
 
