@@ -7,6 +7,15 @@ bumps the minor version.
 
 ## [Unreleased]
 
+### Changed
+
+- An INSERT that places its block as an array -- columns or rows (groups 70, 71) over one, a MINSERT -- is
+  read with its whole grid: `InsertEntity::array` carries the columns, the rows and the distances between
+  them (groups 44, 45), and every placement follows from it. It was read as its first placement with a
+  warning; a program that needed the rest had no way to get it. A count that is not a grid (outside
+  1 to 32767) is still read as a single placement, with a `MINSERT:` warning. Needs the `uncad-model` release
+  that adds `InsertEntity::array`.
+
 ## [0.11.0] - 2026-11-05
 
 ### Changed

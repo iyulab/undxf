@@ -9,13 +9,13 @@ use uncad_model::model::{
     AcadTableEntity, ArcEntity, AttdefEntity, AttribEntity, AttributeFlags, CircleEntity,
     Confidence, DimensionEntity, DimensionKind, DimensionPoints, Dogleg, EllipseEntity, Entity,
     EntityCommon, EntityId, EntityLinetype, Face3DEntity, HatchEntity, HorizontalJustification,
-    ImageEntity, InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LeaderRoot, LightEntity,
-    LightType, LineEntity, LwPolylineEntity, MLineEntity, MLineVertex, MTextAttachment,
-    MTextEntity, MultiLeaderBlock, MultiLeaderContent, MultiLeaderEntity, MultiLeaderText,
-    OrdinateAxis, Origin, OverrideValue, Point2D, Point3D, PointEntity, PolylineVertex, RayEntity,
-    Ref, Solid3DEntity, SolidEntity, SplineEntity, StyleOverride, TableCell, TableCellKind,
-    TableFlow, TableGrid, TableRow, TextEntity, TextOverride, ToleranceEntity,
-    VerticalJustification, ViewportEntity, ViewportView, WipeoutEntity,
+    ImageEntity, InsertArray, InsertEntity, LeaderAnnotation, LeaderEntity, LeaderPath, LeaderRoot,
+    LightEntity, LightType, LineEntity, LwPolylineEntity, MLineEntity, MLineVertex,
+    MTextAttachment, MTextEntity, MultiLeaderBlock, MultiLeaderContent, MultiLeaderEntity,
+    MultiLeaderText, OrdinateAxis, Origin, OverrideValue, Point2D, Point3D, PointEntity,
+    PolylineVertex, RayEntity, Ref, Solid3DEntity, SolidEntity, SplineEntity, StyleOverride,
+    TableCell, TableCellKind, TableFlow, TableGrid, TableRow, TextEntity, TextOverride,
+    ToleranceEntity, VerticalJustification, ViewportEntity, ViewportView, WipeoutEntity,
 };
 
 /// Where the IDs of handle-less entities live: above every possible handle
@@ -1323,15 +1323,10 @@ fn read_insert(
     pairs: &[Pair<'_>],
     warnings: &mut Vec<String>,
 ) -> Result<Entity, ReadError> {
-    // An array of placements (MINSERT): the model holds one, so the
-    // rest would be lost in silence.
-    let columns = int(pairs, 70)?.unwrap_or(1);
-    let rows = int(pairs, 71)?.unwrap_or(1);
-    if columns > 1 || rows > 1 {
-        warnings.push(format!(
-            "MINSERT: an INSERT places its block as an array of {columns} columns and {rows} rows (groups 70 and 71); only its first placement is read"
-        ));
-    }
+    // A multiple insert (MINSERT) places its block in a grid: the columns
+    // and rows (70, 71) and the distances between them (44, 45). A grid of
+    // one cell is the single placement an INSERT is.
+    let array = read_array(pairs, warnings)?;
     Ok(Entity::Insert(InsertEntity {
         common,
         block_name: name_ref(text(pairs, 2)),
@@ -1344,6 +1339,36 @@ fn read_insert(
         rotation: radians(pairs, 50)?,
         attribs: Vec::new(),
         extrusion: extrusion(pairs)?,
+        array,
+    }))
+}
+
+/// The grid of a multiple insert, or `None` for a single placement.
+///
+/// Counts are 16-bit in the format, so one that is not in `1..=32767` is not
+/// a grid a drawing can state: the INSERT is read as a single placement and
+/// the warning says what the file wrote.
+fn read_array(
+    pairs: &[Pair<'_>],
+    warnings: &mut Vec<String>,
+) -> Result<Option<InsertArray>, ReadError> {
+    let columns = int(pairs, 70)?.unwrap_or(1);
+    let rows = int(pairs, 71)?.unwrap_or(1);
+    let in_range = |n: i64| (1..=i64::from(i16::MAX)).contains(&n);
+    if !in_range(columns) || !in_range(rows) {
+        warnings.push(format!(
+            "MINSERT: an INSERT states {columns} columns and {rows} rows (groups 70 and 71), which is not a grid; it is read as a single placement"
+        ));
+        return Ok(None);
+    }
+    if columns == 1 && rows == 1 {
+        return Ok(None);
+    }
+    Ok(Some(InsertArray {
+        columns: columns as u32,
+        rows: rows as u32,
+        column_spacing: num_or(pairs, 44, 0.0)?,
+        row_spacing: num_or(pairs, 45, 0.0)?,
     }))
 }
 
